@@ -1,0 +1,89 @@
+{
+  "revision": "bay1-simulation-5",
+  "geometry": {"length_m": 30.0, "width_m": 18.0, "clear_height_m": 5.22},
+  "air": {
+    "pressure_kpa": 101.325,
+    "dry_density_kg_m3": 1.18,
+    "specific_heat_kj_kg_k": 1.006,
+    "effective_thermal_mass_kj_k": 6000.0,
+    "envelope_kw_k": 0.45,
+    "room_moisture_kg_h": 0.18
+  },
+  "mau": {
+    "max_airflow_m3h": 10800.0,
+    "rated_fan_kw": 15.5,
+    "rated_hz": 50.0,
+    "min_command": 0.70,
+    "filter_dp_rated_pa": 1182.0,
+    "filter_dp_alarm_pa": 1400.0,
+    "precool_target_c": 17.7,
+    "precool_capacity_kw": 115.0,
+    "recool_capacity_kw": 155.0,
+    "supply_dewpoint_target_c": 8.0,
+    "supply_temp_target_c": 20.99,
+    "reheat_capacity_kw": 50.0,
+    "fan_heat_fraction_to_room": 0.20
+  },
+  "ffu": {
+    "count": 48,
+    "face_area_m2": 0.724,
+    "min_face_velocity_m_s": 0.32,
+    "rated_face_velocity_m_s": 0.52,
+    "power_curve_velocity_m_s": [0.0, 0.32, 0.42, 0.52],
+    "power_curve_w": [0.0, 82.7, 108.3, 133.9],
+    "particle_efficiency": 0.99999,
+    "recirculation_nh3_efficiency": 0.70
+  },
+  "exhaust_m3h": {"acid": 3500.0, "solvent": 3000.0, "general_heat": 2000.0},
+  "pressure": {
+    "time_constant_s": 20.0,
+    "crack_flow_exponent": 0.625,
+    "crack_flow_m3_s_at_18_pa": 0.3093,
+    "relief_opening_pa": 19.0,
+    "relief_flow_m3_s_pa": 0.17,
+    "door_flow_m3_s_pa_sqrt": 0.50,
+    "door_mixing_m3_s": 0.12
+  },
+  "cooling": {
+    "room_coil_capacity_kw": 160.0,
+    "room_coil_time_constant_s": 60.0,
+    "room_coil_feedback_kw_k": 28.0,
+    "assumed_cooling_cop": 3.5
+  },
+  "contaminants": {
+    "corridor_particles_01_m3": 500000.0,
+    "corridor_particles_05_m3": 60000.0,
+    "supply_particles_01_m3": 0.5,
+    "supply_particles_05_m3": 0.05,
+    "generation_fraction_05": 0.12,
+    "corridor_nh3_ppb": 3.5,
+    "supply_nh3_ppb": 0.175,
+    "nh3_generation_ppb_m3_s_at_150_particles_min": 0.6
+  },
+  "limits": {
+    "temp_min": 21.5,
+    "temp_max": 22.5,
+    "rh_min": 40.0,
+    "rh_max": 45.0,
+    "dp_min": 15.0,
+    "dp_max": 30.0,
+    "particles_01_max": 1000.0,
+    "particles_05_max": 35.0,
+    "nh3_max": 10.0
+  },
+  "control": {
+    "target_temp_c": 22.0,
+    "target_rh_pct": 42.5,
+    "pressure_target_pa": 19.0,
+    "baseline_mau": 0.95,
+    "baseline_ffu": 1.0,
+    "max_change_per_minute": 0.04,
+    "control_period_s": 60.0,
+    "prediction_steps": 6,
+    "planning_dp_floor_pa": 16.0,
+    "grid_spacing": 0.02,
+    "recovery_samples": 3,
+    "sensor_max_age_s": 120.0,
+    "command_max_age_s": 60.0
+  }
+}

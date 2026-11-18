@@ -1,0 +1,14 @@
+{
+  "id": "eq_db_001",
+  "segment": "Lithography",
+  "vendor": "ASML",
+  "model": "TWINSCAN NXT:2050i",
+  "wafer_size": "300mm",
+  "key_specs": "ArF immersion 193nm, NA 1.35; resolution 38nm(dipole)/40nm(C-quad); 295 wph; dual stage",
+  "dimensions": "not published",
+  "weight": "not published",
+  "source_url": "https://www.asml.com/en/products/duv-lithography-systems/twinscan-nxt2050i",
+  "source_tier": "official",
+  "notes": "7nm-28nm logic/DRAM workhorse; NXT4 platform",
+  "process_node": "7nm-28nm"
+}
