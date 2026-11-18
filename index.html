@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buronix // Semiconductor Cleanroom & MAU Digital Twin</title>
+  <link rel="stylesheet" href="css/buronix_theme.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ==========================================================================
+       TOP NAVIGATION & HEADER BAR
+       ========================================================================== -->
+  <header class="buronix-header">
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        BURONIX<span class="accent">.AI</span> // DIGITAL TWIN
+      </div>
+      <div class="live-indicator">
+        <div class="pulse-dot"></div>
+        LIVE DIGITAL TWIN
+      </div>
+    </div>
+
+    <!-- Facility Selector -->
+    <div class="facility-selector">
+      <span>📍 Phân Khu:</span>
+      <select id="facilitySelect">
+        <option value="bay1">Fab 300mm — Bay 1: Lithography & Track (ISO Class 3)</option>
+        <option value="bay2">Fab 300mm — Bay 2: Etch & Diffusion (ISO Class 4)</option>
+        <option value="subfab">Subfab — Segregated Scrubbers & Pumps</option>
+      </select>
+    </div>
+
+    <!-- Mode Toggle Pills -->
+    <div class="mode-toggle-group">
+      <button class="mode-btn" data-mode="baseline">
+        <span>●</span> Baseline ASHRAE G36
+      </button>
+      <button class="mode-btn active-ai" data-mode="ai">
+        <span>⚡</span> AI-CDCV SAC (Nhánh Phuoc)
+      </button>
+      <button class="mode-btn" data-mode="split">
+        <span>⚏</span> Đối Chuẩn Kép
+      </button>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <button id="btnReset" class="tool-btn" title="Đặt lại mô phỏng ban đầu">🔄</button>
+      <button class="btn-benchmark" onclick="window.open('https://github.com/nguyenminhhieu22444-source/semiconductor-fab-hvac-optimization/tree/Phuoc', '_blank')">
+        <span>📄</span> Báo Cáo Kỹ Thuật (Phuoc Branch)
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       METRICS HUD RIBBON (LIVE TELEMETRY CARDS)
+       ========================================================================== -->
+  <section class="telemetry-ribbon">
+    <!-- Card 1: Power Demand -->
+    <div class="kpi-card kpi-savings">
+      <div class="kpi-header">
+        <span>Công Suất Quạt Điện</span>
+        <span class="canvas-tag tag-emerald">VFD</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valPowerKw" class="kpi-num">11.58</span>
+        <span class="kpi-unit">kW</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-green">▼ -41.2% vs Baseline</span>
+        <span class="kpi-unit">Định mức 19.7 kW</span>
+      </div>
+    </div>
+
+    <!-- Card 2: Cumulative Energy & Savings -->
+    <div class="kpi-card kpi-savings">
+      <div class="kpi-header">
+        <span>Điện Năng 24h & Tiết Kiệm</span>
+        <span class="canvas-tag tag-emerald">SAC</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valEnergyKwh" class="kpi-num">568.7</span>
+        <span class="kpi-unit">kWh</span>
+      </div>
+      <div class="kpi-footer">
+        <span id="valSavingsPct" class="kpi-delta delta-green">+44.71% TIẾT KIỆM</span>
+        <span class="kpi-unit">459.9 kWh cắt giảm</span>
+      </div>
+    </div>
+
+    <!-- Card 3: Differential Pressure -->
+    <div class="kpi-card kpi-pressure">
+      <div class="kpi-header">
+        <span>Chênh Áp Phòng (ΔP)</span>
+        <span class="canvas-tag tag-cyan">ISO 3</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valDp" class="kpi-num">16.28</span>
+        <span class="kpi-unit">Pa</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-green">Đạt Chuẩn (≥ 15.0 Pa)</span>
+        <span class="kpi-unit">Sàn an toàn PLC</span>
+      </div>
+    </div>
+
+    <!-- Card 4: Cleanroom Temperature -->
+    <div class="kpi-card kpi-temp">
+      <div class="kpi-header">
+        <span>Nhiệt Độ Buồng</span>
+        <span class="canvas-tag">ASML</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valTemp" class="kpi-num">22.01</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-neutral">Target: 22.0 ± 0.3°C</span>
+        <span class="kpi-unit">Chống dãn nở lens</span>
+      </div>
+    </div>
+
+    <!-- Card 5: Relative Humidity -->
+    <div class="kpi-card kpi-temp">
+      <div class="kpi-header">
+        <span>Độ Ẩm Tương Đối (RH)</span>
+        <span class="canvas-tag">ESD</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valRh" class="kpi-num">41.4</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-neutral">Target: 41.0 ± 2.0%</span>
+        <span class="kpi-unit">Triệt tĩnh điện</span>
+      </div>
+    </div>
+
+    <!-- Card 6: Airborne Particles -->
+    <div class="kpi-card kpi-particles">
+      <div class="kpi-header">
+        <span>Hạt Nano (≥0.1 µm)</span>
+        <span class="canvas-tag">ULPA</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valParticles" class="kpi-num">64.8</span>
+        <span class="kpi-unit">/m³</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-green">Rất Sạch (Limit 1,000)</span>
+        <span class="kpi-unit">ISO Class 3</span>
+      </div>
+    </div>
+
+    <!-- Card 7: Chemical AMC (NH3) -->
+    <div class="kpi-card kpi-particles">
+      <div class="kpi-header">
+        <span>Ô Nhiễm Phân Tử AMC</span>
+        <span class="canvas-tag">SEMI</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valAmc" class="kpi-num">0.28</span>
+        <span class="kpi-unit">ppb</span>
+      </div>
+      <div class="kpi-footer">
+        <span class="kpi-delta delta-green">An Toàn (Limit 10.0)</span>
+        <span class="kpi-unit">Màng than hoạt tính</span>
+      </div>
+    </div>
+
+    <!-- Card 8: Actuator Status -->
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span>Cơ Cấu Chấp Hành</span>
+        <span class="canvas-tag tag-cyan">ACT</span>
+      </div>
+      <div class="kpi-value-row">
+        <span id="valMauHz" class="kpi-num" style="font-size:16px;">39.5 Hz</span>
+      </div>
+      <div class="kpi-footer">
+        <span id="valFfuSpeed" class="kpi-unit">48 FFU: 79% Tốc độ</span>
+        <span id="valAch" class="kpi-unit">18.4 ACH</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       MAIN WORKSPACE: DIGITAL TWIN SCHEMATIC & AI HUD
+       ========================================================================== -->
+  <main class="workspace-grid">
+    <!-- Center Left: The Interactive Digital Twin Canvas -->
+    <section class="canvas-panel">
+      <div class="canvas-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span>SƠ ĐỒ BẢN SAO SỐ THỜI GIAN THỰC (MAU DUAL-COIL & BAY 1 CLEANROOM)</span>
+          <span style="font-size:11px; color:var(--text-dim); font-weight:normal;">(Nhấp chuột vào từng bộ phận để tra cứu thông số kỹ thuật)</span>
+        </div>
+        <div class="canvas-tags">
+          <span class="canvas-tag tag-cyan">LƯU LƯỢNG 10,800 m³/h</span>
+          <span class="canvas-tag tag-emerald">60 FPS FLUID DYNAMICS</span>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="digitalTwinCanvas" width="1100" height="540"></canvas>
+
+        <!-- Floating Legend -->
+        <div class="legend-overlay">
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;"></div><span>Khí tươi ngoài trời</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00e5ff;"></div><span>Khí sau làm lạnh & tách ẩm</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00ff88;"></div><span>Dòng khí sạch một chiều (Laminar)</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#eab308;"></div><span>Khí thải độc Subfab</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar: AI-CDCV Neural Intelligence HUD (SAC Brain) -->
+    <aside class="sidebar-panel">
+      <!-- SAC Neural Engine Card -->
+      <div class="ai-card">
+        <div class="ai-card-header">
+          <span>🧠 BỘ NÃO AI-CDCV (SAC AGENT)</span>
+          <span class="sac-badge">MAX ENTROPY DRL</span>
+        </div>
+
+        <div style="font-size:11.5px; color:var(--text-muted); line-height:1.4;">
+          Thuật toán <strong>Soft Actor-Critic (Haarnoja et al.)</strong> phối hợp với <strong>Action Masking (Kumar et al.)</strong> và <strong>Biemann Optimization</strong>.
+        </div>
+
+        <div class="inspect-param-row">
+          <span>Hành động liên tục a_raw:</span>
+          <strong id="valSacActionRaw" style="color:var(--cyan-glow); font-family:var(--font-mono);">[-0.15, 0.35]</strong>
+        </div>
+
+        <!-- Continuous Action Masking -->
+        <div class="masking-container">
+          <div class="mask-row">
+            <div class="mask-label">
+              <span>Cửa sổ khả thi Quạt MAU (lo - hi):</span>
+              <strong id="maskMauText">0.70 — 1.00</strong>
+            </div>
+            <div class="mask-track">
+              <div id="maskMauRange" class="mask-valid-range" style="left: 0%; width: 100%;"></div>
+              <div id="maskMauPointer" class="mask-pointer" style="left: 65%;"></div>
+            </div>
+          </div>
+          <div style="font-size:9.5px; color:var(--text-dim);">
+            Ràng buộc: Tốc độ đổi biến tần ≤ 5%/phút & Sàn áp suất bù gió xả Subfab.
+          </div>
+        </div>
+
+        <!-- Epistemic Uncertainty Quantification -->
+        <div class="uncertainty-box">
+          <div class="inspect-param-row">
+            <span>Độ bất định Double-Q (|Q₁ - Q₂|):</span>
+            <strong id="valSacUncertainty" style="color:var(--emerald-neon); font-family:var(--font-mono);">0.123</strong>
+          </div>
+          <div class="uncertainty-meter">
+            <div id="uncertaintyFillBar" class="uncertainty-fill" style="width: 12%;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-dim);">
+            <span>An toàn (&lt;15.0)</span>
+            <span>Cảnh báo (15-25)</span>
+            <span>Fallback (&gt;25.0)</span>
+          </div>
+        </div>
+
+        <!-- Biemann Momentum States -->
+        <div class="inspect-param-group" style="padding:8px 10px;">
+          <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Vector Quán Tính Vật Lý</div>
+          <div class="inspect-param-row" style="margin-top:4px;">
+            <span>dT/dt (Quán tính nhiệt):</span>
+            <strong id="valTempVel" style="color:var(--amber-warn); font-family:var(--font-mono);">+0.002 °C/min</strong>
+          </div>
+          <div class="inspect-param-row">
+            <span>dΔP/dt (Vận tốc áp suất):</span>
+            <strong id="valDpVel" style="color:var(--cyan-glow); font-family:var(--font-mono);">-0.005 Pa/min</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLC Safety Gatekeeper Matrix -->
+      <div class="ai-card">
+        <div class="ai-card-header">
+          <span>🛡️ CỔNG CHỐT AN TOÀN PLC</span>
+          <span class="sac-badge" style="border-color:var(--emerald-neon); color:var(--emerald-neon);">SIL-2 READY</span>
+        </div>
+
+        <div class="plc-checklist">
+          <div class="plc-item"><div class="plc-check">✓</div><span>Cảm biến toàn vẹn (Không nhiễu/NaN)</span></div>
+          <div class="plc-item"><div class="plc-check">✓</div><span>Tốc độ thay đổi quạt Slew-rate ≤ 4%/phút</span></div>
+          <div class="plc-item"><div class="plc-check">✓</div><span>Chênh áp phòng ΔP ≥ 15.0 Pa (Không tụt áp)</span></div>
+          <div class="plc-item"><div class="plc-check">✓</div><span>Dải nhiệt độ ổn định [21.5°C, 22.5°C]</span></div>
+          <div class="plc-item"><div class="plc-check">✓</div><span>OPC-UA Watchdog Heartbeat: 1000ms OK</span></div>
+        </div>
+
+        <div style="margin-top:4px; padding:6px 10px; background:rgba(0, 255, 136, 0.1); border:1px solid rgba(0, 255, 136, 0.3); border-radius:6px; font-size:10.5px;">
+          <span style="color:var(--emerald-neon); font-weight:bold;">Trạng thái: </span>
+          <span id="valPlcStatus" style="color:#fff;">SAFE_ACCEPTED</span><br>
+          <span id="valPlcReason" style="color:var(--text-dim); font-size:9.5px;">Nominal SAC control within limits</span>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ==========================================================================
+       BOTTOM TIMELINE BAR & WHAT-IF INCIDENT INJECTOR
+       ========================================================================== -->
+  <section class="timeline-bar">
+    <!-- Playback Controls -->
+    <div class="playback-controls">
+      <button id="btnPlayPause" class="btn-ctrl" style="width: auto; padding: 0 12px; font-weight: 600;">⏸️ Tạm Dừng</button>
+      <button class="btn-ctrl btn-speed active" data-speed="1">1x</button>
+      <button class="btn-ctrl btn-speed" data-speed="5">5x</button>
+      <button class="btn-ctrl btn-speed" data-speed="20">20x</button>
+    </div>
+
+    <!-- 24h Time Scrubber -->
+    <div class="time-scrubber">
+      <div class="time-labels">
+        <span>⏱️ Tiến độ mô phỏng 24 giờ: <strong id="currentTimeLabel" style="color:var(--cyan-glow);">12:30</strong></span>
+        <span>24:00 (1,440 Bước điều khiển)</span>
+      </div>
+      <input type="range" id="timelineSlider" class="scrubber-slider" min="0" max="1440" value="750">
+    </div>
+
+    <!-- What-If Stress Testing Matrix -->
+    <div class="incident-triggers">
+      <span style="font-size:11px; font-weight:700; color:var(--text-muted);">MÔ PHỎNG SỰ CỐ:</span>
+      <button class="incident-btn" data-incident="doorOpen" title="Mở cửa buồng đệm Airlock gây thất thoát áp suất">
+        🚪 Mở Cửa Airlock
+      </button>
+      <button class="incident-btn" data-incident="thermalSurge" title="Máy ASML phát xung nhiệt tăng thêm 65 kW">
+        🔥 Tải Nhiệt MES Tăng
+      </button>
+      <button class="incident-btn" data-incident="exhaustSurge" title="Tăng lưu lượng hút xả Subfab Acid Scrubber">
+        ⚠️ Tăng Khí Xả
+      </button>
+      <button class="incident-btn" data-incident="heatwave" title="Đợt nắng nóng mùa hè 38.5°C, 86% RH">
+        🌪️ Nắng Nóng Ngoại Thất
+      </button>
+      <button class="incident-btn" data-incident="sensorNoise" title="Cảm biến bị nhiễu để kiểm tra Cổng an toàn PLC">
+        ⚡ Nhiễu Cảm Biến
+      </button>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       REAL-TIME TELEMETRY CHARTS DRAWER
+       ========================================================================== -->
+  <section class="charts-section">
+    <div class="charts-tabs">
+      <div class="tab-group">
+        <button class="chart-tab active">ĐỒ THỊ ĐỐI CHUẨN THỜI GIAN THỰC (WAVEFORMS)</button>
+      </div>
+      <div style="font-size:11px; color:var(--text-dim); font-family:var(--font-mono);">
+        Tần số lấy mẫu: 60 giây/bước | Cửa sổ trượt: 80 phút gần nhất
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <!-- Chart 1: Power Demand -->
+      <div class="chart-box">
+        <div class="chart-title">
+          <span>1. Công Suất Quạt Điện (kW)</span>
+          <span style="color:var(--emerald-neon);">Khu vực xanh: Năng lượng tiết kiệm</span>
+        </div>
+        <canvas id="chartPowerCanvas" class="chart-canvas"></canvas>
+      </div>
+
+      <!-- Chart 2: Differential Pressure -->
+      <div class="chart-box">
+        <div class="chart-title">
+          <span>2. Chênh Áp Phòng Sạch ΔP (Pa)</span>
+          <span style="color:var(--cyan-glow);">Mục tiêu: 16.0 — 20.0 Pa</span>
+        </div>
+        <canvas id="chartDpCanvas" class="chart-canvas"></canvas>
+      </div>
+
+      <!-- Chart 3: Temperature Stability -->
+      <div class="chart-box">
+        <div class="chart-title">
+          <span>3. Nhiệt Độ Phòng (°C)</span>
+          <span style="color:var(--amber-warn);">Vùng chuẩn: 22.0 ± 0.3°C</span>
+        </div>
+        <canvas id="chartEnvCanvas" class="chart-canvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       COMPONENT INSPECTOR OVERLAY MODAL
+       ========================================================================== -->
+  <div id="componentInspector" class="inspector-overlay">
+    <div class="inspector-header">
+      <div id="inspectorTitle" class="inspector-title">Thông Tin Thiết Bị</div>
+      <button id="inspectorClose" class="inspector-close">✕</button>
+    </div>
+    <div id="inspectorBody" class="inspector-body">
+      <!-- Populated dynamically via app.js -->
+    </div>
+  </div>
+
+  <!-- Script Inclusions -->
+  <script src="js/sac_runtime.js"></script>
+  <script src="js/mau_cleanroom_sim.js"></script>
+  <script src="js/buronix_animator.js"></script>
+  <script src="js/charts_dashboard.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
