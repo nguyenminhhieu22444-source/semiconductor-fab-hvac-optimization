@@ -40,6 +40,18 @@ class ThermalForcing:
         return self.heat_source_kw - self.conductance_kw_k * CONTROL["target_temp_c"]
 
 
+@dataclass(frozen=True)
+class AirExchange:
+    mau_m3_s: float
+    ffu_m3_s: float
+    inflow_m3_s: float
+    outflow_m3_s: float
+    pressure_steady_pa: float
+    particle_source_01_s: float
+    particle_source_05_s: float
+    particle_removal_m3_s: float
+
+
 def thermal_step(temp, coil, forcing, dt_sec):
     """Physical reference with the feedback target held over one time step."""
     demand = forcing.load_at_setpoint_kw + COOLING["room_coil_feedback_kw_k"] * (temp - CONTROL["target_temp_c"])
@@ -213,31 +225,38 @@ class CleanroomPlant:
             "age_s": 0.0,
         }
 
-    def predict(self, u_mau, u_ffu, state, disturbance, dt_sec=60.0, *, thermal_transition=thermal_step):
-        """A pure transition used for simulation and prediction."""
-        if not math.isfinite(dt_sec) or dt_sec <= 0.0:
-            raise ValueError("dt_sec must be finite and positive")
+    def air_exchange(self, u_mau, u_ffu, disturbance):
         q_mau = u_mau * self.mau_max_airflow
         q_ffu = u_ffu * self.n_ffu * self.ffu_rated_airflow
         q_exhaust = disturbance.exhaust_m3_s
         dp_steady = self.compute_pressure_steady(q_mau, q_exhaust, disturbance.door_fraction)
-        dp = approach(state["dp"], dp_steady, PRESSURE["time_constant_s"], dt_sec)
         # Quasi-steady net flow closes the volume balance. Door mixing adds equal counterflows.
         q_mix = disturbance.door_fraction * PRESSURE["door_mixing_m3_s"]
         q_in = max(0.0, q_exhaust - q_mau) + q_mix
         q_out = q_exhaust + max(0.0, q_mau - q_exhaust) + q_mix
-
         particle_source = disturbance.particles_per_min / 60.0
-        particle_removal = q_out + FFU["particle_efficiency"] * q_ffu
-        particles = well_mixed(
-            state["particle_count"],
+        return AirExchange(
+            q_mau, q_ffu, q_in, q_out, dp_steady,
             particle_source + q_mau * CONTAMINANTS["supply_particles_01_m3"] + q_in * CONTAMINANTS["corridor_particles_01_m3"],
-            particle_removal, self.volume, dt_sec,
+            particle_source * CONTAMINANTS["generation_fraction_05"] + q_mau * CONTAMINANTS["supply_particles_05_m3"] + q_in * CONTAMINANTS["corridor_particles_05_m3"],
+            q_out + FFU["particle_efficiency"] * q_ffu,
+        )
+
+    def predict(self, u_mau, u_ffu, state, disturbance, dt_sec=60.0, *, thermal_transition=thermal_step):
+        """A pure transition used for simulation and prediction."""
+        if not math.isfinite(dt_sec) or dt_sec <= 0.0:
+            raise ValueError("dt_sec must be finite and positive")
+        airflow = self.air_exchange(u_mau, u_ffu, disturbance)
+        q_mau, q_ffu = airflow.mau_m3_s, airflow.ffu_m3_s
+        q_in, q_out = airflow.inflow_m3_s, airflow.outflow_m3_s
+        q_exhaust = disturbance.exhaust_m3_s
+        dp_steady = airflow.pressure_steady_pa
+        dp = approach(state["dp"], dp_steady, PRESSURE["time_constant_s"], dt_sec)
+        particles = well_mixed(
+            state["particle_count"], airflow.particle_source_01_s, airflow.particle_removal_m3_s, self.volume, dt_sec,
         )
         particles_05 = well_mixed(
-            state["particles_05"],
-            particle_source * CONTAMINANTS["generation_fraction_05"] + q_mau * CONTAMINANTS["supply_particles_05_m3"] + q_in * CONTAMINANTS["corridor_particles_05_m3"],
-            particle_removal, self.volume, dt_sec,
+            state["particles_05"], airflow.particle_source_05_s, airflow.particle_removal_m3_s, self.volume, dt_sec,
         )
         nh3_source = CONTAMINANTS["nh3_generation_ppb_m3_s_at_150_particles_min"] * disturbance.particles_per_min / 150.0
         nh3 = well_mixed(

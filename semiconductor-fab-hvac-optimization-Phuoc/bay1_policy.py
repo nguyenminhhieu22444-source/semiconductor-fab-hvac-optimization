@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from bay1_air_pinn import AirQualityPINN
 from bay1_control import PLCSafetyChecker, bounded, is_finite_number, pressure_minimum_command
 from bay1_model import CONFIG, CONTROL, LIMITS, environment_violations
 
@@ -91,13 +92,19 @@ def load_policy():
 class DirectFanController:
     """Infer one proposed MAU/FFU pair and submit it to the simulated PLC."""
 
-    def __init__(self, plant):
+    def __init__(self, plant, *, use_pinn=True):
         self.plc = PLCSafetyChecker(plant)
         self.plant = plant
         try:
             self.policy = load_policy()
         except (OSError, ValueError, TypeError, KeyError):
             self.policy = None
+        self.air_pinn = None
+        if use_pinn:
+            try:
+                self.air_pinn = AirQualityPINN(plant)
+            except (OSError, ValueError, TypeError, KeyError, OverflowError):
+                pass
 
     def command_setpoints(self, sensors, q_mes_kw, particle_gen_rate, network_connected=True, *,
                           now_s, dt_sec=PERIOD_S, forecast=()):
@@ -109,6 +116,8 @@ class DirectFanController:
         command = (None, None)
         reason = None
         fallback_floor = None
+        pinn_prediction = None
+        pinn_flags = []
         if not load_ok:
             reason = "Tải MES hoặc nguồn hạt không hợp lệ"
         elif self.policy is None:
@@ -127,6 +136,12 @@ class DirectFanController:
                     features, low, high = policy_inputs(self.plc, sensors, disturbance, upcoming, fallback_floor, dt_sec)
                     increments = np.array([model.predict(features) for model in self.policy])
                     command = tuple((low + np.clip(increments, 0.0, 1.0) * (high - low)).tolist())
+                    if self.air_pinn is not None:
+                        forecast_result = self.air_pinn.forecast(*command, sensors, disturbance, dt_sec)
+                        if forecast_result is not None:
+                            pinn_prediction, pinn_flags = forecast_result
+                            if pinn_flags:
+                                reason = "PINN dự báo vượt giới hạn: " + ", ".join(pinn_flags)
         timing = {"now_s": now_s, "command_time_s": now_s if command[0] is not None else None}
         fallback = {} if fallback_floor is None else {"fallback_mau_floor": fallback_floor}
         result = self.plc.check_and_filter(
@@ -137,4 +152,6 @@ class DirectFanController:
             "requested_u_mau": command[0], "requested_u_ffu": command[1],
             "ai_inferences": int(command[0] is not None),
             "ai_command_rejected": command[0] is not None and result["status"] == "FAIL_SAFE_ACTIVE",
+            "pinn_prediction": pinn_prediction,
+            "pinn_veto": bool(pinn_flags),
         }

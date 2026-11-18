@@ -7,7 +7,7 @@ python 03_scenario_testing/scenario_runner.py
 python 03_scenario_testing/visualize_scenarios.py
 ```
 
-Mỗi kịch bản so sánh quạt cố định, điều áp tham chiếu, MPC vật lý và AI phát lệnh trực tiếp trên cùng tải và nhiễu. Kết quả ghi số chu kỳ đổi lệnh, kWh quạt, phút vi phạm, thời gian tính lệnh và số đề xuất AI bị PLC từ chối. Số phút ngoài giới hạn tính theo ΔP, nhiệt độ, RH, hai kênh hạt và NH₃.
+Mỗi kịch bản so sánh quạt cố định, điều áp tham chiếu, MPC vật lý và AI phát lệnh trực tiếp trên cùng tải và nhiễu. Nhánh AI được chạy hai lần với cùng cây hồi quy và PLC để đo phần đóng góp riêng của PINN. Kết quả ghi số chu kỳ đổi lệnh, kWh quạt, phút vi phạm, thời gian tính lệnh và số đề xuất AI bị PLC từ chối. Số phút ngoài giới hạn tính theo ΔP, nhiệt độ, RH, hai kênh hạt và NH₃.
 
 | Kịch bản | Mục đích |
 | --- | --- |

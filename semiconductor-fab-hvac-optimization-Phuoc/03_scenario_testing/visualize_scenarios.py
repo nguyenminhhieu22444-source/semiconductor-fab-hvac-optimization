@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bay1_model import LIMITS
+from bay1_plots import ai_mode_label
 
 
 def plot_scenarios_report(show=False):
@@ -15,7 +16,7 @@ def plot_scenarios_report(show=False):
     folder = Path(__file__).resolve().parent
     results = json.loads((folder / "scenarios_benchmark_results.json").read_text(encoding="utf-8"))
     rows = list(results.values())
-    label = "Direct AI + PLC" if rows[0]["ai_solution"]["policy_model"] else "PLC fallback"
+    label = ai_mode_label(rows[0]["ai_solution"])
     modes = (("baseline", "Fixed speed"), ("pressure_reference", "Pressure reference"),
              ("physics_mpc", "Physics MPC"), ("ai_solution", label))
     positions = list(range(len(rows)))

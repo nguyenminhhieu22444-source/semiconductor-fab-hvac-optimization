@@ -8,12 +8,14 @@ from time import perf_counter_ns
 from uuid import uuid4
 
 from bay1_control import AIEnergyOptimizer, PLCSafetyChecker, pressure_ramp_plan
+from bay1_air_pinn import MODEL_VERSION as PINN_VERSION
 from bay1_model import CONFIG, CONTROL, CleanroomPlant, Disturbance, environment_violations
 from bay1_policy import MODEL_VERSION, TRAINING_SOURCE, DirectFanController
 from bay1_scenarios import generate_benchmark_day, get_all_scenarios
 
 
 ROOT = Path(__file__).resolve().parent
+DIRECT_MODES = ("ai", "ai_without_pinn")
 
 
 def disturbance_at(scenario, index):
@@ -62,7 +64,7 @@ def simulation_step(plant, controller, scenario, index, mode):
                 CONTROL["baseline_ffu"], sensors,
                 disturbance=actual, dt_sec=dt_sec, fallback_mau_floor=minimum_commands[0],
             )
-        elif mode == "ai":
+        elif mode in DIRECT_MODES:
             command = controller.command_setpoints(
                 sensors, actual.equipment_kw, actual.particles_per_min, connected,
                 now_s=now_s, dt_sec=dt_sec, forecast=forecast,
@@ -82,12 +84,12 @@ def simulation_step(plant, controller, scenario, index, mode):
 
 
 def simulate_single_mode(scenario, mode="ai"):
-    if mode not in {"baseline", "reference", "ai", "physics_mpc"}:
+    if mode not in {"baseline", "reference", *DIRECT_MODES, "physics_mpc"}:
         raise ValueError(f"Unknown simulation mode: {mode}")
     plant = CleanroomPlant()
     controller = None
-    if mode == "ai":
-        controller = DirectFanController(plant)
+    if mode in DIRECT_MODES:
+        controller = DirectFanController(plant, use_pinn=mode == "ai")
     elif mode == "physics_mpc":
         controller = AIEnergyOptimizer(plant, use_gpr=False)
     elif mode == "reference":
@@ -98,7 +100,8 @@ def simulate_single_mode(scenario, mode="ai"):
     history = {"time_hr": [], "u_mau": [], "u_ffu": [], "plc_status": [], "plc_reason": [],
                "production_hold": [], "violations": [], "energy_kwh": [],
                "requested_u_mau": [], "requested_u_ffu": [],
-               "ai_inferences": [], "ai_command_rejected": []}
+               "ai_inferences": [], "ai_command_rejected": [],
+               "pinn_prediction": [], "pinn_veto": []}
     timings = []
     fan_energy = hvac_energy = reheat_energy = 0.0
     for index in range(count):
@@ -117,7 +120,9 @@ def simulate_single_mode(scenario, mode="ai"):
         history["requested_u_ffu"].append(command.get("requested_u_ffu"))
         history["ai_inferences"].append(command.get("ai_inferences", 0))
         history["ai_command_rejected"].append(command.get("ai_command_rejected", False))
-        if command["status"] == "SAFE" and mode in {"ai", "physics_mpc"}:
+        history["pinn_prediction"].append(command.get("pinn_prediction"))
+        history["pinn_veto"].append(command.get("pinn_veto", False))
+        if command["status"] == "SAFE" and mode in {*DIRECT_MODES, "physics_mpc"}:
             timings.append(command["controller_time_us"])
         for key, value in state.items():
             history.setdefault(key, []).append(value)
@@ -156,13 +161,16 @@ def simulate_single_mode(scenario, mode="ai"):
         "failsafe_trigger_minutes": history["plc_status"].count("FAIL_SAFE_ACTIVE") * dt_min,
         "production_hold_minutes": sum(history["production_hold"]) * dt_min,
     }
-    if mode in {"ai", "physics_mpc"}:
+    if mode in {*DIRECT_MODES, "physics_mpc"}:
         kpis["median_safe_command_time_us"] = median(timings) if timings else None
-    if mode == "ai":
+    if mode in DIRECT_MODES:
         kpis["policy_model"] = MODEL_VERSION if controller.policy is not None else None
         kpis["training_source"] = TRAINING_SOURCE if controller.policy is not None else None
         kpis["ai_inferences"] = sum(history["ai_inferences"])
         kpis["ai_commands_rejected"] = sum(history["ai_command_rejected"])
+        kpis["pinn_model"] = PINN_VERSION if controller.air_pinn is not None else None
+        kpis["pinn_forecasts"] = sum(prediction is not None for prediction in history["pinn_prediction"])
+        kpis["pinn_vetoes"] = sum(history["pinn_veto"])
     return history, kpis
 
 
@@ -170,6 +178,7 @@ def run_scenario_comparison(scenario_data):
     baseline, base_kpis = simulate_single_mode(scenario_data, "baseline")
     _, reference_kpis = simulate_single_mode(scenario_data, "reference")
     physics, physics_kpis = simulate_single_mode(scenario_data, "physics_mpc")
+    trees, trees_kpis = simulate_single_mode(scenario_data, "ai_without_pinn")
     ai, ai_kpis = simulate_single_mode(scenario_data, "ai")
     base_energy = base_kpis["total_energy_kwh"]
     saved = base_energy - ai_kpis["total_energy_kwh"]
@@ -180,7 +189,15 @@ def run_scenario_comparison(scenario_data):
         "scenario_id": scenario_data["id"], "scenario_name": scenario_data["name"],
         "scenario_description": scenario_data["description"], "config_revision": CONFIG["revision"],
         "baseline": base_kpis, "pressure_reference": reference_kpis,
-        "physics_mpc": physics_kpis, "ai_solution": ai_kpis,
+        "physics_mpc": physics_kpis, "ai_without_pinn": trees_kpis, "ai_solution": ai_kpis,
+        "pinn_comparison": {
+            "changed_command_steps": sum(
+                abs(ma - mt) > 1e-9 or abs(fa - ft) > 1e-9
+                for ma, mt, fa, ft in zip(ai["u_mau"], trees["u_mau"], ai["u_ffu"], trees["u_ffu"])
+            ),
+            "fan_energy_saved_kwh": trees_kpis["total_energy_kwh"] - ai_kpis["total_energy_kwh"],
+            "additional_violation_minutes": ai_kpis["violation_minutes"] - trees_kpis["violation_minutes"],
+        },
         "policy_comparison": {
             "changed_command_steps": sum(
                 abs(ma - mp) > 1e-9 or abs(fa - fp) > 1e-9

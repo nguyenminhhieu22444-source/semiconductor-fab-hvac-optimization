@@ -32,9 +32,12 @@
   },
   "failsafe_trigger_minutes": 51.0,
   "production_hold_minutes": 57.0,
-  "median_safe_command_time_us": 125.0,
+  "median_safe_command_time_us": 101.0,
   "policy_model": "bay1-fan-policy-1",
   "training_source": "synthetic_physics_mpc_imitation",
   "ai_inferences": 1389,
-  "ai_commands_rejected": 0
+  "ai_commands_rejected": 0,
+  "pinn_model": "bay1-air-pinn-1",
+  "pinn_forecasts": 1389,
+  "pinn_vetoes": 0
 }

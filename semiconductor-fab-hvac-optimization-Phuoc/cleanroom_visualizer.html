@@ -356,7 +356,7 @@
       display: block;
     }
 
-    /* Proposed Architecture Flow Indicator */
+    /* Bay 1 Architecture Flow */
     .arch-flow-box {
       margin-top: 16px;
       background: var(--card-bg);
@@ -367,10 +367,7 @@
 
     .arch-steps {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
       gap: 8px;
-      flex-wrap: wrap;
       margin-top: 12px;
     }
 
@@ -382,7 +379,7 @@
       font-size: 12px;
       text-align: center;
       flex: 1;
-      min-width: 140px;
+      min-width: 0;
     }
 
     .arch-node.active-node {
@@ -391,9 +388,27 @@
     }
 
     .arch-arrow {
+      align-self: center;
       color: var(--text-muted);
       font-weight: 700;
       font-size: 16px;
+    }
+
+    .arch-training {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 960px) {
+      .arch-steps {
+        flex-direction: column;
+      }
+
+      .arch-arrow {
+        transform: rotate(90deg);
+      }
     }
   </style>
 </head>
@@ -669,36 +684,46 @@
     </div>
   </div>
 
-  <!-- Solution Architecture Flow matching User's Proposed Schema -->
+  <!-- Bay 1 Training and Control Flow -->
   <div class="arch-flow-box">
     <div class="card-title" style="margin-bottom: 4px;">
       <span>Luồng điều khiển phòng sạch Bay 1</span>
     </div>
-    <div class="arch-steps">
-      <div class="arch-node active-node" id="node1">
-        <strong>1. MES & Cảm Biến</strong><br>
-        <span style="color:var(--text-muted); font-size:11px;">Tải nhiệt MES, Lưu lượng xả, Hạt sinh ra, Áp suất,
-          Bụi</span>
+    <div class="arch-training">
+      <strong>Huấn luyện ngoại tuyến</strong>
+      <p>Kịch bản mô phỏng và thông số Bay 1 → MPC vật lý (Tìm kiếm lưới) → 6.604 mẫu lệnh → Hai cây hồi quy</p>
+      <p>Phương trình chênh áp và cân bằng hạt → PINN chênh áp và hạt</p>
+    </div>
+    <div class="arch-steps" role="group" aria-label="Luồng điều khiển trong mô phỏng">
+      <div class="arch-node active-node">
+        <strong>Cảm biến + lịch MES</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Trạng thái phòng, tải sản xuất và lịch xả</span>
       </div>
-      <div class="arch-arrow">➔</div>
-      <div class="arch-node" id="node2">
-        <strong>2. AI chọn tốc độ MAU và FFU</strong><br>
-        <span>Mô hình học từ MPC vật lý tạo một cặp tốc độ từ cảm biến và lịch MES.</span>
+      <div class="arch-arrow" aria-hidden="true">➔</div>
+      <div class="arch-node">
+        <strong>Hai cây hồi quy học bắt chước MPC</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Đề xuất cặp tốc độ MAU và FFU</span>
         <div id="predictionStatus" style="color:var(--text-muted); font-size:11px; margin-top:6px;"></div>
       </div>
-      <div class="arch-arrow">➔</div>
-      <div class="arch-node" id="node3" style="border: 2px solid #eab308;">
-        <strong>3. PLC SAFETY CHECK</strong><br>
+      <div class="arch-arrow" aria-hidden="true">➔</div>
+      <div class="arch-node">
+        <strong>PINN chênh áp và hạt</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Dự báo sau một phút cho lệnh đề xuất</span>
+        <div id="pinnStatus" style="color:var(--text-muted); font-size:11px; margin-top:4px;"></div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">➔</div>
+      <div class="arch-node" style="border: 2px solid #eab308;">
+        <strong>Chốt PLC mô phỏng</strong><br>
         <span style="color:var(--text-muted); font-size:11px;">Kiểm tra cảm biến, lệnh quạt và dự báo vật lý một bước</span>
       </div>
-      <div class="arch-arrow">➔</div>
-      <div class="arch-node" id="node4">
-        <strong>4. Điều Khiển Quạt (MAU & FFU)</strong><br>
-        <span style="color:var(--text-muted); font-size:11px;">Cấp tốc độ Safe hoặc kích hoạt Fail-Safe Fallback</span>
+      <div class="arch-arrow" aria-hidden="true">➔</div>
+      <div class="arch-node">
+        <strong>Biến tần và quạt MAU/FFU</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Thực thi lệnh được duyệt hoặc lệnh dự phòng</span>
       </div>
-      <div class="arch-arrow">➔</div>
-      <div class="arch-node" id="node5">
-        <strong>5. Phòng Sạch Bán Dẫn</strong><br>
+      <div class="arch-arrow" aria-hidden="true">➔</div>
+      <div class="arch-node">
+        <strong>Phòng sạch Bay 1</strong><br>
         <span style="color:var(--text-muted); font-size:11px;">Điện quạt và thời gian vượt giới hạn thiết kế</span>
       </div>
     </div>
@@ -711,7 +736,9 @@
       throw new Error('Missing bay1_traces.js');
     }
     const { config, scenario, baseline: baselineData, ai: aiData, summary } = window.BAY1_TRACES;
-    const modelLabel = summary.ai_solution.policy_model ? 'AI trực tiếp' : 'PLC dự phòng';
+    const modelLabel = summary.ai_solution.policy_model
+      ? (summary.ai_solution.pinn_model ? 'AI + PINN' : 'AI trực tiếp')
+      : 'PLC dự phòng';
     document.getElementById('btnModeAI').innerText = modelLabel;
     const limit = config.limits;
     const area = config.geometry.length_m * config.geometry.width_m;
@@ -1223,6 +1250,10 @@
         document.getElementById('predictionStatus').innerText = requestMau === null
           ? 'PLC dùng lệnh dự phòng'
           : `AI đề xuất MAU ${(100 * requestMau).toFixed(1)}% · FFU ${(100 * requestFfu).toFixed(1)}%${rejected ? ' · PLC từ chối' : ''}`;
+        const airPrediction = aiData.pinn_prediction?.[step];
+        document.getElementById('pinnStatus').innerText = airPrediction
+          ? `PINN dự báo sau 1 phút · ΔP ${airPrediction.dp.toFixed(2)} Pa · Hạt ≥0,1 µm ${airPrediction.particle_count.toFixed(1)}/m³ · Hạt ≥0,5 µm ${airPrediction.particles_05.toFixed(1)}/m³${aiData.pinn_veto?.[step] ? ' · Cảnh báo' : ''}`
+          : '';
         const plcStat = aiData.plc_status[step];
         const plcReason = aiData.plc_reason[step];
         const badge = document.getElementById('plcStatusBadge');
@@ -1236,6 +1267,7 @@
         document.getElementById('plcReason').innerText = plcReason;
       } else {
         document.getElementById('predictionStatus').innerText = 'Chế độ quạt cố định';
+        document.getElementById('pinnStatus').innerText = '';
         document.getElementById('plcStatusBadge').className = 'plc-pill plc-safe';
         document.getElementById('plcStatusBadge').innerText = 'BASELINE CỐ ĐỊNH';
         document.getElementById('plcReason').innerText = 'MAU 95% và FFU 100%. So sánh trên cùng kịch bản.';

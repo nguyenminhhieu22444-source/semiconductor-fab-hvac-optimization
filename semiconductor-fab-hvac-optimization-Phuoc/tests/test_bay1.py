@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from bay1_control import AIEnergyOptimizer, FFU_MIN, MAU_MIN, PLCSafetyChecker
+from bay1_air_pinn import AirQualityPINN
 from bay1_model import CONTROL, LIMITS, CleanroomPlant, Disturbance, dewpoint, humidity_ratio, supply_conditions, well_mixed
 from bay1_policy import DirectFanController, MODEL_VERSION as POLICY_VERSION
 from bay1_scenarios import generate_benchmark_day, get_all_scenarios
@@ -210,6 +211,51 @@ def test_absent_policy_runs_plc_fallback(monkeypatch):
     assert cmd["requested_u_mau"] is None
 
 
+def test_pinn_predicts_air_quality_for_the_issued_command():
+    plant = CleanroomPlant()
+    disturbance = Disturbance(plant.base_exhaust_flow, 35.0, 150.0)
+    expected = plant.predict(0.95, 0.8, plant.state, disturbance)
+    predicted, flags = AirQualityPINN(plant).forecast(0.95, 0.8, plant.state, disturbance, 60.0)
+    assert not flags
+    assert predicted["dp"] == pytest.approx(expected["dp"], abs=0.01)
+    assert predicted["particle_count"] == pytest.approx(expected["particle_count"], abs=0.05)
+    assert predicted["particles_05"] == pytest.approx(expected["particles_05"], abs=0.01)
+
+
+def test_pinn_flags_proposal_before_plc_applies_fallback():
+    plant = CleanroomPlant()
+    source = 1_000_000.0
+    disturbance = Disturbance(plant.base_exhaust_flow, 35.0, source, amc_multiplier=0.0)
+    controller = DirectFanController(plant)
+    cmd = controller.command_setpoints(plant.sensor_data(disturbance) | {"sample_time_s": 0.0}, 35.0, source, now_s=0.0)
+    assert cmd["ai_inferences"] == 1
+    assert cmd["pinn_prediction"]["particles_05"] > LIMITS["particles_05_max"]
+    assert cmd["pinn_veto"] and cmd["ai_command_rejected"] and cmd["production_hold"]
+    assert cmd["status"] == "FAIL_SAFE_ACTIVE"
+    assert any("PINN" in reason for reason in cmd["reasons"])
+
+
+def test_missing_air_pinn_keeps_independent_plc_check(monkeypatch):
+    def missing():
+        raise FileNotFoundError("air PINN")
+
+    monkeypatch.setattr("bay1_air_pinn.load_air_pinn", missing)
+    plant = CleanroomPlant()
+    controller = DirectFanController(plant)
+    checked = []
+    gate_forecast = controller.plc.forecast_violations
+
+    def spy(*args):
+        checked.append(args[:2])
+        return gate_forecast(*args)
+
+    monkeypatch.setattr(controller.plc, "forecast_violations", spy)
+    cmd, _ = simulation_step(plant, controller, generate_benchmark_day(), 0, "ai")
+    assert cmd["pinn_prediction"] is None
+    assert cmd["status"] == "SAFE"
+    assert checked == [(cmd["u_mau"], cmd["u_ffu"])]
+
+
 def test_full_day_benchmark_and_scenarios():
     scenarios = get_all_scenarios()
     assert np.count_nonzero(scenarios["2"]["door_fraction"]) == 30
@@ -220,6 +266,12 @@ def test_full_day_benchmark_and_scenarios():
         assert summary["ai_solution"]["policy_model"] == POLICY_VERSION
         assert summary["ai_solution"]["ai_inferences"] == sum(ai["ai_inferences"]) > 0
         assert summary["ai_solution"]["ai_commands_rejected"] == sum(ai["ai_command_rejected"])
+        assert summary["ai_solution"]["pinn_forecasts"] == sum(item is not None for item in ai["pinn_prediction"]) > 0
+        assert summary["ai_solution"]["pinn_vetoes"] == sum(ai["pinn_veto"])
+        assert summary["ai_without_pinn"]["pinn_forecasts"] == 0
+        assert summary["pinn_comparison"]["fan_energy_saved_kwh"] == pytest.approx(
+            summary["ai_without_pinn"]["total_energy_kwh"] - summary["ai_solution"]["total_energy_kwh"]
+        )
         assert summary["physics_mpc"]["median_safe_command_time_us"] > 0.0
         assert summary["policy_comparison"]["fan_energy_saved_kwh"] == pytest.approx(
             summary["physics_mpc"]["total_energy_kwh"] - summary["ai_solution"]["total_energy_kwh"]

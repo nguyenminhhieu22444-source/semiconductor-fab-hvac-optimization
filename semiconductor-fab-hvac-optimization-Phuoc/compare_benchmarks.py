@@ -22,6 +22,7 @@ def main(plots=True):
           f"{summary['ai_solution']['violation_minutes']:.0f} minutes.")
     comparison = summary["policy_comparison"]
     ai_kpis = summary["ai_solution"]
+    pinn = summary["pinn_comparison"]
     print(f"Direct AI model: {ai_kpis['policy_model'] or 'unavailable'}. "
           f"Compared with physics MPC: {comparison['changed_command_steps']} changed command pairs, "
           f"{comparison['fan_energy_saved_kwh']:.2f} kWh difference in savings, "
@@ -29,6 +30,9 @@ def main(plots=True):
     print("Median controller time on SAFE cycles (AI / physics MPC): "
           f"{ai_kpis['median_safe_command_time_us']} / "
           f"{summary['physics_mpc']['median_safe_command_time_us']} us.")
+    print(f"PINN: {ai_kpis['pinn_forecasts']} forecasts, {ai_kpis['pinn_vetoes']} flagged proposals, "
+          f"{pinn['changed_command_steps']} changed commands, {pinn['fan_energy_saved_kwh']:.2f} kWh saved "
+          "versus the same trees and PLC.")
     return summary
 
 

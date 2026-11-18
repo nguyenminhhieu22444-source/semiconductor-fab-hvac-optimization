@@ -36,7 +36,7 @@ def populate_daily_plot(figure, traces):
 def plot_daily_comparison(baseline, ai, summary):
     from matplotlib.figure import Figure
 
-    label = "Direct AI + PLC" if summary["ai_solution"]["policy_model"] else "PLC fallback"
+    label = ai_mode_label(summary["ai_solution"])
     fig = Figure(figsize=(13, 11), layout="constrained")
     fig.suptitle(
         f"Bay 1  |  Fixed speed vs {label}  |  "
@@ -52,7 +52,7 @@ def run_daily_mode(mode):
     trace, kpis = simulate_single_mode(generate_benchmark_day(), mode)
     label, directory, stem = {
         "baseline": ("Fixed speed", "01_baseline", "baseline"),
-        "ai": ("Direct AI + PLC" if kpis.get("policy_model") else "PLC fallback", "02_ai_solution", "ai"),
+        "ai": (ai_mode_label(kpis), "02_ai_solution", "ai"),
     }[mode]
     write_json(ROOT / directory / f"{stem}_kpis.json", kpis)
     fig = Figure(figsize=(12, 10), layout="constrained")
@@ -61,3 +61,9 @@ def run_daily_mode(mode):
     fig.savefig(ROOT / directory / f"{stem}_results.png", dpi=135)
     print(f"{label}: {kpis['total_energy_kwh']:.2f} kWh fan electricity")
     return trace, kpis
+
+
+def ai_mode_label(kpis):
+    if not kpis.get("policy_model"):
+        return "PLC fallback"
+    return "AI + PINN + PLC" if kpis.get("pinn_model") else "Direct AI + PLC"

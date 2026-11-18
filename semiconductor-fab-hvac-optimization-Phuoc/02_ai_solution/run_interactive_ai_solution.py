@@ -136,7 +136,9 @@ def run_interactive_ai_simulation(speed_factor=10):
     # -------------------------------------------------------------
     # 1. Fan Electrical Power (kW)
     # -------------------------------------------------------------
-    model_label = "AI trực tiếp + PLC" if ai_optimizer.policy is not None else "PLC dự phòng"
+    model_label = "PLC dự phòng"
+    if ai_optimizer.policy is not None:
+        model_label = "AI + PINN + PLC" if ai_optimizer.air_pinn is not None else "AI trực tiếp + PLC"
     line_power, = axs[1].plot([], [], color='#16a34a', lw=2.2, label=f"{model_label} fan power")
     axs[1].axhline(baseline_kw, color='#dc2626', linestyle='--', lw=1.5, label=f"Baseline ({baseline_kw:.1f} kW)")
     axs[1].set_xlim(0, 24)
