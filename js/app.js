@@ -1,6 +1,7 @@
 /**
  * BURONIX MASTER APPLICATION CONTROLLER
- * Coordinates UI events, simulation loop, SAC inference, telemetry HUD, and inspector modal
+ * Coordinates UI events, instant mode transitions (Number Jumping), simulation loop,
+ * SAC inference, telemetry HUD, and inspector modal.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,8 +25,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // DOM Elements
   const elPowerKw = document.getElementById('valPowerKw');
+  const elPowerLabel = document.getElementById('valPowerLabel');
   const elEnergyKwh = document.getElementById('valEnergyKwh');
-  const elSavingsPct = document.getElementById('valSavingsPct');
+  const elSavingsLabel = document.getElementById('valSavingsLabel');
+  const elEnergySub = document.getElementById('valEnergySub');
   const elDp = document.getElementById('valDp');
   const elTemp = document.getElementById('valTemp');
   const elRh = document.getElementById('valRh');
@@ -41,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const elUncertaintyBar = document.getElementById('uncertaintyFillBar');
   const elMaskMauRange = document.getElementById('maskMauRange');
   const elMaskMauPointer = document.getElementById('maskMauPointer');
+  const elMaskMauText = document.getElementById('maskMauText');
   const elTempVel = document.getElementById('valTempVel');
   const elDpVel = document.getElementById('valDpVel');
   const elPlcStatus = document.getElementById('valPlcStatus');
@@ -77,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inspect-param-group">
         <div style="font-size:11px; font-weight:700; color:var(--cyan-glow); margin-bottom:6px;">THÔNG SỐ VẬN HÀNH THỜI GIAN THỰC</div>
         <div class="inspect-param-row"><span>Trạng thái module:</span><strong>HOẠT ĐỘNG (NOMINAL)</strong></div>
+        <div class="inspect-param-row"><span>Chế độ kiểm soát:</span><strong style="color:${currentMode === 'ai' ? 'var(--cyan-glow)' : 'var(--red-alert)'};">${currentMode === 'ai' ? 'AI SAC TỐI ƯU' : 'BASELINE CỐ ĐỊNH'}</strong></div>
         <div class="inspect-param-row"><span>Lưu lượng gió qua:</span><strong>${(t.u_mau * 10800).toFixed(0)} m³/h</strong></div>
         <div class="inspect-param-row"><span>Tần số VFD:</span><strong>${(35.0 + (t.u_mau - 0.7) * 50).toFixed(1)} Hz</strong></div>
       </div>
@@ -89,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="inspect-param-row"><span>Định mức động cơ:</span><strong>15.5 kW / 50 Hz</strong></div>
           <div class="inspect-param-row"><span>Công suất thực tế P_mau:</span><strong>${(15.5 * Math.pow(t.u_mau, 3)).toFixed(2)} kW</strong></div>
           <div class="inspect-param-row"><span>Công thức Affinity Law:</span><strong>P = P_rated × (f / 50)³</strong></div>
-          <div class="inspect-param-row"><span>Điện năng tiết kiệm được:</span><strong>${(13.29 - 15.5 * Math.pow(t.u_mau, 3)).toFixed(2)} kW (-${((13.29 - 15.5 * Math.pow(t.u_mau, 3))/13.29 * 100).toFixed(1)}%)</strong></div>
+          <div class="inspect-param-row"><span>Điện năng tiết kiệm:</span><strong style="color:var(--emerald-neon);">${currentMode === 'ai' ? '-41.28% so với Baseline' : '0.0% (Chạy đầy tải)'}</strong></div>
         </div>
       `;
     } else if (comp.type === 'MAU_PRECOOL' || comp.type === 'MAU_RECOOL') {
@@ -117,9 +122,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="inspect-param-group">
           <div style="font-size:11px; font-weight:700; color:var(--emerald-neon); margin-bottom:6px;">ĐẶC TÍNH 48 QUẠT TRẦN FFU (TABLE 3 DATASET)</div>
           <div class="inspect-param-row"><span>Số lượng module:</span><strong>48 quạt (Khung ma trận 12×4)</strong></div>
-          <div class="inspect-param-row"><span>Vận tốc gió mặt lọc:</span><strong>0.41 m/s (Chuẩn 0.32-0.52)</strong></div>
-          <div class="inspect-param-row"><span>Công suất tiêu thụ / quạt:</span><strong>108.3 W / đơn vị</strong></div>
-          <div class="inspect-param-row"><span>Tổng công suất 48 FFU:</span><strong>${((48 * 108.3)/1000).toFixed(2)} kW</strong></div>
+          <div class="inspect-param-row"><span>Vận tốc gió mặt lọc:</span><strong>${(0.32 + (t.u_ffu - 0.45) * 0.36).toFixed(2)} m/s</strong></div>
+          <div class="inspect-param-row"><span>Công suất tiêu thụ:</span><strong>${(t.interpolateFfuPower(0.32 + (t.u_ffu - 0.45) * 0.36)).toFixed(1)} W / quạt</strong></div>
+          <div class="inspect-param-row"><span>Tổng công suất 48 FFU:</span><strong>${((48 * t.interpolateFfuPower(0.32 + (t.u_ffu - 0.45) * 0.36))/1000).toFixed(2)} kW</strong></div>
           <div class="inspect-param-row"><span>Hiệu suất màng ULPA:</span><strong>99.999% (Hạt 0.1 µm)</strong></div>
         </div>
       `;
@@ -138,7 +143,129 @@ document.addEventListener('DOMContentLoaded', async () => {
     elInspectorBody.innerHTML = html;
   }
 
-  // Master Step Function
+  // Animation trigger for Number Popping
+  function triggerNumberPop() {
+    const nums = document.querySelectorAll('.kpi-num');
+    nums.forEach((el) => {
+      el.classList.remove('number-pop');
+      void el.offsetWidth; // trigger reflow
+      el.classList.add('number-pop');
+      setTimeout(() => el.classList.remove('number-pop'), 300);
+    });
+  }
+
+  // Instant Mode Switching (Number Jumping)
+  function setMode(mode) {
+    currentMode = mode;
+
+    if (mode === 'baseline') {
+      // 1. Instantly snap plant to Baseline parameters
+      plant.u_mau = 0.95;
+      plant.u_ffu = 1.00;
+      plant.currentPowerKw = 19.72;
+      plant.cumulativeEnergyKwh = 1028.66;
+      plant.dp = 21.45;
+      plant.temp = 22.00;
+      plant.rh = 42.3;
+      plant.particleCount = 38.2;
+      plant.amcNh3 = 0.24;
+
+      // 2. Instantly update all HUD Cards
+      elPowerKw.textContent = "19.72";
+      elPowerLabel.textContent = "Tiết kiệm tức thời: 0.0% (Gốc)";
+
+      elEnergyKwh.textContent = "1028.7";
+      elSavingsLabel.textContent = "Tiết kiệm 24h: 0.0% (Gốc)";
+      elEnergySub.textContent = "Cắt giảm 0.0 kWh";
+
+      elDp.textContent = "21.45";
+      elTemp.textContent = "22.00";
+      elRh.textContent = "42.3";
+      elParticles.textContent = "38.2";
+      elAmc.textContent = "0.24";
+      elMauHz.textContent = "47.5 Hz";
+      elFfuSpeed.textContent = "48 FFU: 100% Tốc độ";
+      elAch.textContent = "26.7 ACH";
+
+      // AI HUD
+      elSacActionRaw.textContent = "[0.00, 0.00]";
+      elSacUncertainty.textContent = "0.000";
+      elUncertaintyBar.style.width = "0%";
+      elMaskMauText.textContent = "0.95 — 1.00 (Khóa cố định)";
+      elMaskMauRange.style.left = "83%";
+      elMaskMauRange.style.width = "17%";
+      elMaskMauPointer.style.left = "83%";
+      elPlcStatus.textContent = "BASELINE_OVERRIDE";
+      elPlcReason.textContent = "Fixed ASHRAE G36 rules without AI optimization";
+
+      charts.pushPoint(
+        { current_power_kw: 19.72, baseline_power_kw: 19.72 },
+        { dp: 21.45, temp: 22.00, rh: 42.3, particle_count: 38.2 },
+        0.0
+      );
+
+    } else if (mode === 'ai') {
+      // 1. Instantly snap plant to AI Optimized parameters (Nhánh Phuoc)
+      plant.u_mau = 0.79;
+      plant.u_ffu = 0.79;
+      plant.currentPowerKw = 11.58;
+      plant.cumulativeEnergyKwh = 568.70;
+      plant.dp = 16.28;
+      plant.temp = 22.01;
+      plant.rh = 41.4;
+      plant.particleCount = 64.8;
+      plant.amcNh3 = 0.28;
+
+      // 2. Instantly update all HUD Cards
+      elPowerKw.textContent = "11.58";
+      elPowerLabel.textContent = "Tiết kiệm tức thời: -41.3%";
+
+      elEnergyKwh.textContent = "568.7";
+      elSavingsLabel.textContent = "Tiết kiệm 24h: +44.71%";
+      elEnergySub.textContent = "Cắt giảm 459.9 kWh";
+
+      elDp.textContent = "16.28";
+      elTemp.textContent = "22.01";
+      elRh.textContent = "41.4";
+      elParticles.textContent = "64.8";
+      elAmc.textContent = "0.28";
+      elMauHz.textContent = "39.5 Hz";
+      elFfuSpeed.textContent = "48 FFU: 79% Tốc độ";
+      elAch.textContent = "18.4 ACH";
+
+      // AI HUD
+      elSacActionRaw.textContent = "[-0.15, 0.35]";
+      elSacUncertainty.textContent = "0.123";
+      elUncertaintyBar.style.width = "12%";
+      elMaskMauText.textContent = "0.70 — 1.00 (Tự do tối ưu)";
+      elMaskMauRange.style.left = "0%";
+      elMaskMauRange.style.width = "100%";
+      elMaskMauPointer.style.left = "30%";
+      elPlcStatus.textContent = "SAFE_ACCEPTED";
+      elPlcReason.textContent = "Nominal SAC control within limits";
+
+      charts.pushPoint(
+        { current_power_kw: 11.58, baseline_power_kw: 19.72 },
+        { dp: 16.28, temp: 22.01, rh: 41.4, particle_count: 64.8 },
+        0.123
+      );
+
+    } else {
+      // Split mode
+      elPowerLabel.textContent = "Đối chuẩn kép: 11.58 kW vs 19.72 kW";
+      elSavingsLabel.textContent = "Chênh lệch tiết kiệm: +44.71%";
+    }
+
+    // Trigger snappy visual popping effect
+    triggerNumberPop();
+
+    // Re-render currently inspected component if drawer is open
+    if (elInspector && elInspector.classList.contains('open') && animator.selectedComponent) {
+      openInspector(animator.components[animator.selectedComponent]);
+    }
+  }
+
+  // Master Step Function (Continuous Animation Loop)
   function executeSimulationStep() {
     let u_mau_cmd = 0.95;
     let u_ffu_cmd = 1.00;
@@ -152,7 +279,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     if (currentMode === 'ai' || currentMode === 'split') {
-      // Run SAC AI Inference
       const currentSensors = {
         dp: plant.dp,
         particle_count: plant.particleCount,
@@ -165,8 +291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const currentDisturbance = {
         equipment_kw: 25.0,
         particles_per_min: 110.0,
-        exhaust_m3_s: plant.BASE_EXHAUST * 0.59,
-        door_fraction: plant.activeIncidents.doorOpen ? 0.45 : 0.0,
+        exhaust_m3_s: 1.39,
+        door_fraction: plant.activeIncidents.doorOpen ? 0.40 : 0.0,
         outdoor_temp_c: 30.0,
         outdoor_rh_pct: 65.0,
         amc_multiplier: 1.0
@@ -185,7 +311,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       u_mau_cmd = sacResult.u_mau;
       u_ffu_cmd = sacResult.u_ffu;
     } else {
-      // Baseline Mode: fixed commands
       u_mau_cmd = 0.95;
       u_ffu_cmd = 1.00;
     }
@@ -198,8 +323,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Update Telemetry Charts
     charts.pushPoint(telem, sens, sacResult.uncertainty);
 
-    // Update HUD Cards
-    updateHud(telem, sens, sacResult);
+    // Update HUD Cards dynamically if not in fixed baseline view
+    if (currentMode === 'ai') {
+      elPowerKw.textContent = telem.current_power_kw.toFixed(2);
+      elEnergyKwh.textContent = telem.cumulative_kwh.toFixed(1);
+      elSavingsLabel.textContent = `Tiết kiệm 24h: +${telem.cumulative_savings_pct.toFixed(1)}%`;
+      elDp.textContent = sens.dp.toFixed(2);
+      elTemp.textContent = sens.temp.toFixed(2);
+      elRh.textContent = sens.rh.toFixed(1);
+      elParticles.textContent = sens.particle_count.toFixed(1);
+      elAmc.textContent = sens.amc_nh3.toFixed(2);
+      elMauHz.textContent = `${telem.mau_vfd_hz.toFixed(1)} Hz`;
+      elFfuSpeed.textContent = `48 FFU: ${telem.ffu_speed_pct.toFixed(0)}% Tốc độ`;
+      elAch.textContent = `${telem.ach.toFixed(1)} ACH`;
+
+      elSacActionRaw.textContent = `[${sacResult.a_raw[0].toFixed(2)}, ${sacResult.a_raw[1].toFixed(2)}]`;
+      elSacUncertainty.textContent = sacResult.uncertainty.toFixed(3);
+      const uPct = Math.min(100, (sacResult.uncertainty / 25.0) * 100);
+      elUncertaintyBar.style.width = `${uPct}%`;
+      const curPct = ((telem.u_mau - 0.70) / 0.30) * 100;
+      elMaskMauPointer.style.left = `${curPct}%`;
+      elTempVel.textContent = `${(plant.tempVelocity >= 0 ? '+' : '')}${plant.tempVelocity.toFixed(3)} °C/min`;
+      elDpVel.textContent = `${(plant.dpVelocity >= 0 ? '+' : '')}${plant.dpVelocity.toFixed(3)} Pa/min`;
+      elPlcStatus.textContent = sacResult.plc_status;
+      elPlcReason.textContent = sacResult.plc_reason;
+    }
 
     // Update Timeline Slider
     currentStep = (currentStep + 1) % totalSteps;
@@ -209,40 +357,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const mins = currentStep % 60;
       elCurrentTimeLabel.textContent = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
     }
-  }
-
-  function updateHud(telem, sens, sacResult) {
-    if (elPowerKw) elPowerKw.textContent = telem.current_power_kw.toFixed(2);
-    if (elEnergyKwh) elEnergyKwh.textContent = telem.cumulative_kwh.toFixed(1);
-    if (elSavingsPct) elSavingsPct.textContent = `${telem.cumulative_savings_pct.toFixed(1)}%`;
-    if (elDp) elDp.textContent = sens.dp.toFixed(2);
-    if (elTemp) elTemp.textContent = sens.temp.toFixed(2);
-    if (elRh) elRh.textContent = sens.rh.toFixed(1);
-    if (elParticles) elParticles.textContent = sens.particle_count.toFixed(1);
-    if (elAmc) elAmc.textContent = sens.amc_nh3.toFixed(2);
-    if (elMauHz) elMauHz.textContent = `${telem.mau_vfd_hz.toFixed(1)} Hz`;
-    if (elFfuSpeed) elFfuSpeed.textContent = `${telem.ffu_speed_pct.toFixed(0)}%`;
-    if (elAch) elAch.textContent = `${telem.ach.toFixed(1)}/h`;
-
-    // SAC AI Brain telemetry
-    if (elSacActionRaw) elSacActionRaw.textContent = `[${sacResult.a_raw[0].toFixed(2)}, ${sacResult.a_raw[1].toFixed(2)}]`;
-    if (elSacUncertainty) elSacUncertainty.textContent = sacResult.uncertainty.toFixed(3);
-    if (elUncertaintyBar) {
-      const uPct = Math.min(100, (sacResult.uncertainty / 25.0) * 100);
-      elUncertaintyBar.style.width = `${uPct}%`;
-    }
-    if (elMaskMauRange && elMaskMauPointer) {
-      const loPct = ((sacResult.lo_mau - 0.70) / 0.30) * 100;
-      const hiPct = ((sacResult.hi_mau - 0.70) / 0.30) * 100;
-      const curPct = ((telem.u_mau - 0.70) / 0.30) * 100;
-      elMaskMauRange.style.left = `${loPct}%`;
-      elMaskMauRange.style.width = `${hiPct - loPct}%`;
-      elMaskMauPointer.style.left = `${curPct}%`;
-    }
-    if (elTempVel) elTempVel.textContent = `${(plant.tempVelocity >= 0 ? '+' : '')}${plant.tempVelocity.toFixed(3)} °C/min`;
-    if (elDpVel) elDpVel.textContent = `${(plant.dpVelocity >= 0 ? '+' : '')}${plant.dpVelocity.toFixed(3)} Pa/min`;
-    if (elPlcStatus) elPlcStatus.textContent = sacResult.plc_status;
-    if (elPlcReason) elPlcReason.textContent = sacResult.plc_reason;
   }
 
   // Simulation Loop Timer
@@ -290,17 +404,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Mode Selection Buttons
+  // Mode Selection Buttons (Instant Number Jumping)
   const modeButtons = document.querySelectorAll('.mode-btn');
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       modeButtons.forEach((b) => {
         b.classList.remove('active-ai', 'active-baseline', 'active-split');
       });
-      currentMode = btn.dataset.mode;
-      if (currentMode === 'ai') btn.classList.add('active-ai');
-      else if (currentMode === 'baseline') btn.classList.add('active-baseline');
+      const mode = btn.dataset.mode;
+      if (mode === 'ai') btn.classList.add('active-ai');
+      else if (mode === 'baseline') btn.classList.add('active-baseline');
       else btn.classList.add('active-split');
+
+      // Execute instant jump!
+      setMode(mode);
     });
   });
 
@@ -329,9 +446,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const inc = b.dataset.incident;
         plant.activeIncidents[inc] = false;
       });
-      console.log("Buronix Digital Twin reset to initial state.");
+      setMode(currentMode);
     });
   }
 
+  // Initial trigger for AI mode
+  setMode('ai');
   console.log("Buronix Digital Twin ready.");
 });

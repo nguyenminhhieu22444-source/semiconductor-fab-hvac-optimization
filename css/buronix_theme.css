@@ -170,17 +170,17 @@ body {
 
 .mode-btn {
   background: transparent;
-  border: none;
-  padding: 6px 14px;
+  border: 1px solid transparent;
+  padding: 8px 16px;
   border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .mode-btn:hover {
@@ -189,22 +189,24 @@ body {
 }
 
 .mode-btn.active-baseline {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.25);
   color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  border: 1px solid #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
 }
 
 .mode-btn.active-ai {
-  background: rgba(0, 229, 255, 0.18);
+  background: rgba(0, 229, 255, 0.22);
   color: var(--cyan-glow);
   border: 1px solid var(--cyan-glow);
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.45);
 }
 
 .mode-btn.active-split {
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.25);
   color: #d8b4fe;
-  border: 1px solid rgba(168, 85, 247, 0.4);
+  border: 1px solid rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.35);
 }
 
 /* Header Utilities */
@@ -250,7 +252,7 @@ body {
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -283,14 +285,14 @@ body {
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .kpi-value-row {
-  margin-top: 6px;
+  margin: 6px 0;
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -298,34 +300,42 @@ body {
 
 .kpi-num {
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   color: #fff;
+  transition: color 0.25s, transform 0.25s;
+}
+
+.kpi-num.number-pop {
+  transform: scale(1.08);
+  color: var(--cyan-glow);
 }
 
 .kpi-unit {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-dim);
 }
 
 .kpi-footer {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  color: var(--text-muted);
 }
 
-.kpi-delta {
-  font-weight: 600;
+.kpi-footer-main {
   font-size: 11px;
-  padding: 1px 5px;
-  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
 }
 
-.delta-green { background: rgba(0, 255, 136, 0.15); color: var(--emerald-neon); }
-.delta-warn { background: rgba(255, 184, 0, 0.15); color: var(--amber-warn); }
-.delta-neutral { color: var(--text-dim); }
+.kpi-footer-sub {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
 
 /* ==========================================================================
    MAIN WORKSPACE: DIGITAL TWIN CANVAS & HUD PANELS

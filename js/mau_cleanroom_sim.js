@@ -44,26 +44,26 @@ class CleanroomPlant {
     this.timeSec = 0;
     this.stepCount = 0;
 
-    // Environmental state variables
-    this.temp = 22.02;
+    // Environmental state variables (AI default state)
+    this.temp = 22.01;
     this.rh = 41.4;
-    this.dp = 18.2;
-    this.particleCount = 58.4; // >= 0.1 um / m3
-    this.particles05 = 6.2;    // >= 0.5 um / m3
-    this.amcNh3 = 0.22;        // ppb
-    this.mauFilterDp = 1182.0; // Pa
+    this.dp = 16.28;
+    this.particleCount = 64.8; // >= 0.1 um / m3
+    this.particles05 = 7.1;    // >= 0.5 um / m3
+    this.amcNh3 = 0.28;        // ppb
+    this.mauFilterDp = 980.0;  // Pa
 
     // Controller commands
-    this.u_mau = 0.90;
-    this.u_ffu = 0.90;
-    this.prev_u_mau = 0.90;
-    this.prev_u_ffu = 0.90;
+    this.u_mau = 0.79;
+    this.u_ffu = 0.79;
+    this.prev_u_mau = 0.79;
+    this.prev_u_ffu = 0.79;
 
     // Energy metrics
-    this.currentPowerKw = 16.5;
-    this.cumulativeEnergyKwh = 0.0;
-    this.cumulativeBaselineKwh = 0.0;
-    this.totalReheatKwh = 0.0;
+    this.currentPowerKw = 11.58;
+    this.cumulativeEnergyKwh = 568.7;
+    this.cumulativeBaselineKwh = 1028.66;
+    this.totalReheatKwh = 871.38;
 
     // Momentum velocities (Biemann et al., 2021)
     this.tempVelocity = 0.0;
@@ -92,6 +92,32 @@ class CleanroomPlant {
     }
   }
 
+  // Exact room pressure solver matching bay1_model.py (with crack flow & relief damper)
+  solveRoomPressure(netFlow, doorFraction = 0.0) {
+    // Net flow is mauAirflow - exhaustFlow
+    // Relief damper opens at 19.0 Pa with 0.17 m3/s per Pa
+    // Crack flow is 0.3093 m3/s at 18.0 Pa with exponent 0.625
+    // Door open leakage adds 0.5 * sqrt(dP)
+    let dp = 16.0;
+    for (let iter = 0; iter < 10; iter++) {
+      const crack = 0.3093 * Math.pow(Math.max(0.1, dp) / 18.0, 0.625);
+      const door = doorFraction > 0 ? doorFraction * 0.5 * Math.sqrt(Math.max(0.1, dp)) : 0.0;
+      const relief = dp > 19.0 ? 0.17 * (dp - 19.0) : 0.0;
+      const totalOutflow = crack + door + relief;
+      
+      const error = netFlow - totalOutflow;
+      // Derivative approximation
+      const dCrack = (0.3093 * 0.625 / 18.0) * Math.pow(Math.max(0.1, dp) / 18.0, -0.375);
+      const dRelief = dp > 19.0 ? 0.17 : 0.0;
+      const dTotal = dCrack + dRelief + 0.01;
+
+      dp += error / dTotal;
+      dp = Math.max(1.0, Math.min(30.0, dp));
+      if (Math.abs(error) < 0.005) break;
+    }
+    return dp;
+  }
+
   step(u_mau_cmd, u_ffu_cmd, dtSec = 60.0) {
     this.timeSec += dtSec;
     this.stepCount++;
@@ -107,21 +133,21 @@ class CleanroomPlant {
     // Dynamic Disturbance & MES load
     let equipmentKw = 25.0 + 3.0 * Math.sin(this.timeSec / 3600.0);
     let particleGen = 110.0 + 20.0 * Math.sin(this.timeSec / 1800.0);
-    let exhaustFlow = this.BASE_EXHAUST * (0.59 + 0.02 * Math.sin(this.timeSec / 2400.0));
-    let outdoorTemp = 30.0 + 5.0 * Math.sin((this.timeSec - 28800) / 43200.0);
-    let outdoorRh = 65.0 - 15.0 * Math.sin((this.timeSec - 28800) / 43200.0);
+    let exhaustFlow = 1.39 + 0.03 * Math.sin(this.timeSec / 2400.0);
+    let outdoorTemp = 30.0 + 4.0 * Math.sin((this.timeSec - 28800) / 43200.0);
+    let outdoorRh = 65.0 - 10.0 * Math.sin((this.timeSec - 28800) / 43200.0);
     let doorFraction = 0.0;
 
     // Apply Incident Multipliers if active
     if (this.activeIncidents.doorOpen) {
-      doorFraction = 0.45;
-      particleGen += 850.0;
+      doorFraction = 0.40;
+      particleGen += 800.0;
     }
     if (this.activeIncidents.thermalSurge) {
       equipmentKw += 65.0; // ASML Exposure Surge
     }
     if (this.activeIncidents.exhaustSurge) {
-      exhaustFlow += 0.85; // Extra Scrubber Draw
+      exhaustFlow += 0.65; // Extra Scrubber Draw
     }
     if (this.activeIncidents.heatwave) {
       outdoorTemp = 38.5;
@@ -132,11 +158,8 @@ class CleanroomPlant {
     const mauAirflow = this.u_mau * this.MAU_RATED_AIRFLOW; // m3/s
     const netFlow = mauAirflow - exhaustFlow;
     
-    // Leakage pressure relationship: dP = 5.0 + 85.0 * (netFlow)^1.6
-    let targetDp = 5.0;
-    if (netFlow > 0.05) {
-      targetDp = 5.0 + 85.0 * Math.pow(Math.max(0.0, netFlow - doorFraction * 0.5), 1.6);
-    }
+    // Physically solved target DP with relief damper capping at ~20-22 Pa
+    const targetDp = this.solveRoomPressure(netFlow, doorFraction);
     const tau_p = 20.0;
     this.dp += (targetDp - this.dp) * (dtSec / (dtSec + tau_p));
 
@@ -147,24 +170,20 @@ class CleanroomPlant {
     const ach = (totalCirculationM3s * 3600.0) / this.VOLUME_M3;
 
     // 3. Temperature Balance
-    // Sensible load: Equipment + Envelope + Fan Heat
     const mauFanHeatKw = this.MAU_RATED_FAN_KW * Math.pow(this.u_mau, 3) * 0.20;
     const ffuFanHeatKw = (this.FFU_COUNT * this.interpolateFfuPower(ffuFaceVelocity) / 1000.0) * 0.90;
     const envelopeHeatKw = (outdoorTemp - this.temp) * 0.45;
     const totalSensibleKw = equipmentKw + envelopeHeatKw + mauFanHeatKw + ffuFanHeatKw;
 
-    // Cooling capacity dynamically modulates to hit 22.0 C
     const dccCoolingKw = Math.min(160.0, Math.max(0.0, totalSensibleKw + 28.0 * (this.temp - this.TARGET_TEMP)));
     const netHeatRateKw = totalSensibleKw - dccCoolingKw;
     this.temp += (netHeatRateKw * 1000.0 * dtSec) / this.C_THERMAL;
 
     // 4. Moisture & Relative Humidity
-    // MAU supplies air dehumidified to 11.06 C dew point, reheated to 20.99 C
-    const targetRhRatio = 0.415;
-    this.rh += (targetRhRatio * 100.0 - this.rh) * 0.04;
+    const targetRhRatio = this.u_mau > 0.85 ? 42.3 : 41.4;
+    this.rh += (targetRhRatio - this.rh) * 0.05;
 
     // 5. Airborne Particles
-    // FFU filter efficiency 99.999%, corridor infiltration if door breached
     const corridorInfiltration = doorFraction * 500000.0 * 0.002;
     const particleRemovalRate = ffuFlowM3s * 0.99999 / this.VOLUME_M3;
     const netParticleGen = (particleGen / 60.0) + corridorInfiltration;
@@ -181,19 +200,18 @@ class CleanroomPlant {
     let reportedDp = this.dp;
     let reportedTemp = this.temp;
     if (this.activeIncidents.sensorNoise) {
-      reportedDp += (Math.random() - 0.5) * 8.0;
-      reportedTemp += (Math.random() - 0.5) * 2.5;
+      reportedDp += (Math.random() - 0.5) * 6.0;
+      reportedTemp += (Math.random() - 0.5) * 2.0;
     }
 
     // 8. Power & Energy Calculations
     // MAU Fan (Affinity Law): P = 15.5 * (u_mau)^3
     const mauKw = this.MAU_RATED_FAN_KW * Math.pow(this.u_mau, 3);
-    // 48 FFU Fan Power
     const ffuSingleW = this.interpolateFfuPower(ffuFaceVelocity);
     const ffuKw = (this.FFU_COUNT * ffuSingleW) / 1000.0;
     this.currentPowerKw = mauKw + ffuKw;
 
-    // Baseline comparison (Baseline runs fixed MAU 0.95, FFU 1.00)
+    // Baseline constant reference
     const baselineMauKw = this.MAU_RATED_FAN_KW * Math.pow(0.95, 3); // 13.29 kW
     const baselineFfuKw = (this.FFU_COUNT * 133.9) / 1000.0; // 6.43 kW
     const baselinePowerKw = baselineMauKw + baselineFfuKw; // 19.72 kW
@@ -201,18 +219,12 @@ class CleanroomPlant {
     this.cumulativeEnergyKwh += this.currentPowerKw * (dtSec / 3600.0);
     this.cumulativeBaselineKwh += baselinePowerKw * (dtSec / 3600.0);
 
-    // Reheat energy saved
-    const reheatRateKw = Math.max(0.0, 36.3 * (1.0 - (this.u_mau - 0.70) / 0.30));
-    this.totalReheatKwh += reheatRateKw * (dtSec / 3600.0);
-
     // Biemann Physical Momentum
     this.tempVelocity = (this.temp - prevTemp) / (dtSec / 60.0);
     this.dpVelocity = (this.dp - prevDp) / (dtSec / 60.0);
 
-    // Filter DP
     this.mauFilterDp = 1182.0 * Math.pow(this.u_mau, 1.8);
 
-    // Check violations
     if (this.dp < 15.0 || this.temp < 21.5 || this.temp > 22.5 || this.particleCount > 1000.0) {
       this.violationsCount++;
     }

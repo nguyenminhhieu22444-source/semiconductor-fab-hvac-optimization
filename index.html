@@ -40,15 +40,15 @@
       </select>
     </div>
 
-    <!-- Mode Toggle Pills -->
+    <!-- Mode Toggle Pills (Clicking instantly snaps all numbers) -->
     <div class="mode-toggle-group">
-      <button class="mode-btn" data-mode="baseline">
+      <button class="mode-btn" data-mode="baseline" id="btnModeBaseline">
         <span>●</span> Baseline ASHRAE G36
       </button>
-      <button class="mode-btn active-ai" data-mode="ai">
+      <button class="mode-btn active-ai" data-mode="ai" id="btnModeAi">
         <span>⚡</span> AI-CDCV SAC (Nhánh Phuoc)
       </button>
-      <button class="mode-btn" data-mode="split">
+      <button class="mode-btn" data-mode="split" id="btnModeSplit">
         <span>⚏</span> Đối Chuẩn Kép
       </button>
     </div>
@@ -56,20 +56,20 @@
     <!-- Header Actions -->
     <div class="header-actions">
       <button id="btnReset" class="tool-btn" title="Đặt lại mô phỏng ban đầu">🔄</button>
-      <button class="btn-benchmark" onclick="window.open('https://github.com/nguyenminhhieu22444-source/semiconductor-fab-hvac-optimization/tree/Phuoc', '_blank')">
-        <span>📄</span> Báo Cáo Kỹ Thuật (Phuoc Branch)
+      <button class="btn-benchmark" onclick="window.open('https://github.com/nguyenminhhieu22444-source/semiconductor-fab-hvac-optimization/tree/web', '_blank')">
+        <span>📄</span> Báo Cáo Kỹ Thuật (Web Branch)
       </button>
     </div>
   </header>
 
   <!-- ==========================================================================
-       METRICS HUD RIBBON (LIVE TELEMETRY CARDS)
+       METRICS HUD RIBBON (LIVE TELEMETRY CARDS - CLEAN & BOLD)
        ========================================================================== -->
   <section class="telemetry-ribbon">
-    <!-- Card 1: Power Demand -->
+    <!-- Card 1: Fan Power Demand -->
     <div class="kpi-card kpi-savings">
       <div class="kpi-header">
-        <span>Công Suất Quạt Điện</span>
+        <span>CÔNG SUẤT QUẠT ĐIỆN</span>
         <span class="canvas-tag tag-emerald">VFD</span>
       </div>
       <div class="kpi-value-row">
@@ -77,15 +77,15 @@
         <span class="kpi-unit">kW</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-green">▼ -41.2% vs Baseline</span>
-        <span class="kpi-unit">Định mức 19.7 kW</span>
+        <span id="valPowerLabel" class="kpi-footer-main">Tiết kiệm tức thời: -41.3%</span>
+        <span class="kpi-footer-sub">Định mức 19.7 kW</span>
       </div>
     </div>
 
     <!-- Card 2: Cumulative Energy & Savings -->
     <div class="kpi-card kpi-savings">
       <div class="kpi-header">
-        <span>Điện Năng 24h & Tiết Kiệm</span>
+        <span>ĐIỆN NĂNG 24H & TIẾT KIỆM</span>
         <span class="canvas-tag tag-emerald">SAC</span>
       </div>
       <div class="kpi-value-row">
@@ -93,15 +93,15 @@
         <span class="kpi-unit">kWh</span>
       </div>
       <div class="kpi-footer">
-        <span id="valSavingsPct" class="kpi-delta delta-green">+44.71% TIẾT KIỆM</span>
-        <span class="kpi-unit">459.9 kWh cắt giảm</span>
+        <span id="valSavingsLabel" class="kpi-footer-main">Tiết kiệm 24h: +44.71%</span>
+        <span id="valEnergySub" class="kpi-footer-sub">Cắt giảm 459.9 kWh</span>
       </div>
     </div>
 
     <!-- Card 3: Differential Pressure -->
     <div class="kpi-card kpi-pressure">
       <div class="kpi-header">
-        <span>Chênh Áp Phòng (ΔP)</span>
+        <span>CHÊNH ÁP PHÒNG (ΔP)</span>
         <span class="canvas-tag tag-cyan">ISO 3</span>
       </div>
       <div class="kpi-value-row">
@@ -109,15 +109,15 @@
         <span class="kpi-unit">Pa</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-green">Đạt Chuẩn (≥ 15.0 Pa)</span>
-        <span class="kpi-unit">Sàn an toàn PLC</span>
+        <span id="valDpLabel" class="kpi-footer-main">Mục tiêu: 16.0 – 20.0 Pa</span>
+        <span class="kpi-footer-sub">Sàn tối thiểu: 15.0 Pa</span>
       </div>
     </div>
 
     <!-- Card 4: Cleanroom Temperature -->
     <div class="kpi-card kpi-temp">
       <div class="kpi-header">
-        <span>Nhiệt Độ Buồng</span>
+        <span>NHIỆT ĐỘ BUỒNG</span>
         <span class="canvas-tag">ASML</span>
       </div>
       <div class="kpi-value-row">
@@ -125,15 +125,15 @@
         <span class="kpi-unit">°C</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-neutral">Target: 22.0 ± 0.3°C</span>
-        <span class="kpi-unit">Chống dãn nở lens</span>
+        <span class="kpi-footer-main">Mục tiêu: 22.0 ± 0.3°C</span>
+        <span class="kpi-footer-sub">Dải bảo vệ quang học</span>
       </div>
     </div>
 
     <!-- Card 5: Relative Humidity -->
     <div class="kpi-card kpi-temp">
       <div class="kpi-header">
-        <span>Độ Ẩm Tương Đối (RH)</span>
+        <span>ĐỘ ẨM TƯƠNG ĐỐI (RH)</span>
         <span class="canvas-tag">ESD</span>
       </div>
       <div class="kpi-value-row">
@@ -141,15 +141,15 @@
         <span class="kpi-unit">%</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-neutral">Target: 41.0 ± 2.0%</span>
-        <span class="kpi-unit">Triệt tĩnh điện</span>
+        <span class="kpi-footer-main">Mục tiêu: 41.0 ± 2.0%</span>
+        <span class="kpi-footer-sub">Triệt phóng tĩnh điện</span>
       </div>
     </div>
 
     <!-- Card 6: Airborne Particles -->
     <div class="kpi-card kpi-particles">
       <div class="kpi-header">
-        <span>Hạt Nano (≥0.1 µm)</span>
+        <span>HẠT NANO (≥0.1 µm)</span>
         <span class="canvas-tag">ULPA</span>
       </div>
       <div class="kpi-value-row">
@@ -157,15 +157,15 @@
         <span class="kpi-unit">/m³</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-green">Rất Sạch (Limit 1,000)</span>
-        <span class="kpi-unit">ISO Class 3</span>
+        <span id="valParticlesLabel" class="kpi-footer-main">Giới hạn ISO 3: ≤ 1,000 /m³</span>
+        <span class="kpi-footer-sub">Màng lọc ULPA 99.999%</span>
       </div>
     </div>
 
     <!-- Card 7: Chemical AMC (NH3) -->
     <div class="kpi-card kpi-particles">
       <div class="kpi-header">
-        <span>Ô Nhiễm Phân Tử AMC</span>
+        <span>Ô NHIỄM PHÂN TỬ AMC</span>
         <span class="canvas-tag">SEMI</span>
       </div>
       <div class="kpi-value-row">
@@ -173,23 +173,23 @@
         <span class="kpi-unit">ppb</span>
       </div>
       <div class="kpi-footer">
-        <span class="kpi-delta delta-green">An Toàn (Limit 10.0)</span>
-        <span class="kpi-unit">Màng than hoạt tính</span>
+        <span id="valAmcLabel" class="kpi-footer-main">Giới hạn SEMI F21: ≤ 10.0 ppb</span>
+        <span class="kpi-footer-sub">Lọc than hoạt tính</span>
       </div>
     </div>
 
     <!-- Card 8: Actuator Status -->
     <div class="kpi-card">
       <div class="kpi-header">
-        <span>Cơ Cấu Chấp Hành</span>
+        <span>CƠ CẤU CHẤP HÀNH</span>
         <span class="canvas-tag tag-cyan">ACT</span>
       </div>
       <div class="kpi-value-row">
-        <span id="valMauHz" class="kpi-num" style="font-size:16px;">39.5 Hz</span>
+        <span id="valMauHz" class="kpi-num">39.5 Hz</span>
       </div>
       <div class="kpi-footer">
-        <span id="valFfuSpeed" class="kpi-unit">48 FFU: 79% Tốc độ</span>
-        <span id="valAch" class="kpi-unit">18.4 ACH</span>
+        <span id="valFfuSpeed" class="kpi-footer-main">48 FFU: 79% Tốc độ</span>
+        <span id="valAch" class="kpi-footer-sub">18.4 ACH</span>
       </div>
     </div>
   </section>
