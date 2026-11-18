@@ -1,0 +1,10 @@
+{
+  "model_name": "AI Energy Optimizer with PLC Safety Check",
+  "total_energy_kwh": 276.7512126638711,
+  "avg_power_kw": 11.531300527661312,
+  "max_power_kw": 21.914505,
+  "min_dp_pa": 2.83327542750917,
+  "max_particles": 8946.458592594514,
+  "failsafe_trigger_minutes": 32,
+  "violations_count": 24
+}

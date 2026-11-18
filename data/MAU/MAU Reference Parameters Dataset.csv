@@ -1,0 +1,23 @@
+﻿STT,Biến dữ liệu (Parameters),Type,Đơn vị,Số liệu vận hành & thiết kế (Values)
+1,"Outdoor Air Temperature (Summer)  (Hsinchu, Taiwan)",Input,°C,35
+2,Outdoor Air Temperature (Winter),Input,°C,5
+3,Outdoor Relative humidity (Summer),Input,%,80
+4,Outdoor Relative humidity (Winter),Input,%,20
+3,Outdoor Air Dew Point,,°C,16.40
+4,MAU Airflow Rate,,m³/h,"63,000 (thực tế/quạt); 100,000 (thiết kế/quạt)"
+5,Supply Airflow Rate,,m³/h,"318,008 (toàn hệ thống); 63,000 (mỗi quạt thực tế); 100,000 (mỗi quạt thiết kế)"
+6,Filter Differential Pressure,,Pa,1182
+7,Cooling Coil Inlet Air Temperature,,°C,Precool inlet: 29.93; Recool inlet: 17.70
+8,Cooling Coil Inlet RH,,%,
+9,Cooling Coil Outlet Air Temperature,,°C,Precool outlet: 17.70; Recool outlet: 11.06
+10,Cooling Coil Outlet RH,,%,
+11,Chilled Water Inlet Temperature,Simulation Reference/Setpoint,°C,6
+13,Chilled Water Valve Opening,,%,0–100
+14,Heating Coil Outlet Air Temperature,Set point 21,°C,20.99
+16,Hot Water Valve Opening,,%,0–100
+17,MAU System Average Measured Electric Load,,kW,93 (tổng 6 MAU)
+18,MAU Supply Fan VFD Frequency,,Hz,35
+19,Supply Air Temperature,,°C,20.99 (Setpoint: 21.00)
+20,Supply Air Dew Point,,°C,11.06 (Setpoint: 11.06)
+21,Hall temperature,Output Simulation Reference/Setpoint,°C,21
+22,Hall humidity,Output Simulation Reference/Setpoint,%,45

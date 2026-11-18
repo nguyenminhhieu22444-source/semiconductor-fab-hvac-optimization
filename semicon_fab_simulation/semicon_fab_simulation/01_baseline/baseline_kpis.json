@@ -1,0 +1,9 @@
+{
+  "model_name": "Baseline Traditional Operation",
+  "total_energy_kwh": 562.0950000000067,
+  "avg_power_kw": 23.420625000000005,
+  "max_power_kw": 23.420625,
+  "min_dp_pa": 5.1214442473041055,
+  "max_particles": 3715.5427234010226,
+  "violations_count": 17
+}

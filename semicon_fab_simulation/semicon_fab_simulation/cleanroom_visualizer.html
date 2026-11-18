@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SemiconFab Digital Twin - Giám Sát & Mô Phỏng Phòng Sạch Bán Dẫn</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --accent: #38bdf8;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-yellow: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 16px; }
+    
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      padding: 14px 20px; border-radius: 12px; margin-bottom: 16px;
+    }
+    .header-title h1 { font-size: 20px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .header-title p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+    .badge {
+      display: inline-block; padding: 4px 10px; border-radius: 9999px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-baseline { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+    .badge-ai { background: #14532d; color: #86efac; border: 1px solid #22c55e; }
+    .badge-split { background: #312e81; color: #c7d2fe; border: 1px solid #6366f1; }
+
+    /* Controls Bar */
+    .controls-bar {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      padding: 12px 20px; border-radius: 12px; margin-bottom: 16px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+    }
+    .btn-group { display: flex; gap: 8px; align-items: center; }
+    button {
+      background: #334155; color: #fff; border: 1px solid #475569;
+      padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 13px; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    button:hover { background: #475569; border-color: #64748b; }
+    button.btn-primary { background: #0284c7; border-color: #38bdf8; }
+    button.btn-primary:hover { background: #0369a1; }
+    button.btn-active { background: #0284c7; border-color: #38bdf8; }
+    
+    .timeline-container { flex: 1; min-width: 250px; display: flex; align-items: center; gap: 12px; }
+    .timeline-container input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; height: 6px; }
+    .sim-clock { font-size: 18px; font-weight: 700; font-family: monospace; color: var(--accent); min-width: 65px; }
+
+    /* Top Grid: Canvas Cleanroom & Telemetry */
+    .main-grid {
+      display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 16px;
+    }
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 16px; position: relative;
+    }
+    .card-title { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    
+    /* 2D Canvas Cleanroom */
+    #cleanroomCanvas {
+      width: 100%; height: 350px; background: #090d16; border-radius: 8px;
+      border: 1px solid #334155; display: block;
+    }
+
+    /* KPI Cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .kpi-box {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .kpi-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .kpi-value { font-size: 22px; font-weight: 700; color: #fff; font-family: monospace; }
+    .kpi-sub { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
+    .val-good { color: var(--accent-green); }
+    .val-warn { color: var(--accent-yellow); }
+    .val-bad { color: var(--accent-red); }
+
+    /* PLC Safety Status Box */
+    .plc-box {
+      margin-top: 12px; padding: 12px; border-radius: 8px;
+      border: 1px solid #334155; background: #0f172a;
+    }
+    .plc-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
+    .plc-pill { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .plc-safe { background: #14532d; color: #86efac; border: 1px solid #22c55e; }
+    .plc-failsafe { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* Events Bar */
+    .events-bar {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px;
+    }
+    .event-tag {
+      font-size: 11px; padding: 4px 8px; border-radius: 6px; background: #334155; color: #cbd5e1;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .event-tag:hover { background: #475569; color: #fff; }
+
+    /* Bottom Charts Grid */
+    .charts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 1000px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-container { height: 190px; width: 100%; position: relative; }
+    canvas.chart-canvas { width: 100%; height: 100%; display: block; }
+
+    /* Proposed Architecture Flow Indicator */
+    .arch-flow-box {
+      margin-top: 16px; background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 16px;
+    }
+    .arch-steps {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .arch-node {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 14px;
+      font-size: 12px; text-align: center; flex: 1; min-width: 140px;
+    }
+    .arch-node.active-node { border-color: var(--accent); box-shadow: 0 0 10px rgba(56, 189, 248, 0.25); }
+    .arch-arrow { color: var(--text-muted); font-weight: 700; font-size: 16px; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="header-title">
+      <h1>
+        <span style="color: #38bdf8;">⚡ SemiconFab Digital Twin</span>
+        <span style="font-size: 13px; background:#0284c7; padding: 3px 8px; border-radius:6px;">Bay 1: Litho & Track (540 m²)</span>
+      </h1>
+      <p>Mô phỏng động học phòng sạch bán dẫn 300mm theo tiêu chuẩn Open Equipment (SemiconFab / ISO 14644-1)</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <div id="modeBadge" class="badge badge-baseline">Chế độ: 01_Baseline (95% / 100%)</div>
+    </div>
+  </header>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar">
+    <div class="btn-group">
+      <button id="btnPlay" class="btn-primary" onclick="togglePlay()">
+        <span id="playIcon">▶</span> <span id="playText">Chạy Mô Phỏng</span>
+      </button>
+      <button onclick="resetSim()">↺ Bắt Đầu Lại</button>
+      <button id="btnModeBase" class="btn-active" onclick="setMode('baseline')">01_Baseline Truyền Thống</button>
+      <button id="btnModeAI" onclick="setMode('ai')">02_AI + PLC Đề Xuất</button>
+      <button id="btnModeSplit" onclick="setMode('split')">📊 So Sánh Song Song</button>
+    </div>
+
+    <div class="timeline-container">
+      <span style="font-size: 12px; color: var(--text-muted);">Thời gian 24h:</span>
+      <div id="clockDisplay" class="sim-clock">00:00</div>
+      <input type="range" id="timeSlider" min="0" max="1439" value="0" oninput="onSeek(this.value)">
+    </div>
+
+    <div class="btn-group">
+      <span style="font-size: 12px; color: var(--text-muted);">Tốc độ:</span>
+      <button class="btn-speed" onclick="setSpeed(1)">1x</button>
+      <button class="btn-speed" onclick="setSpeed(10)">10x</button>
+      <button class="btn-speed btn-active" id="spd60" onclick="setSpeed(60)">60x</button>
+      <button class="btn-speed" onclick="setSpeed(240)">240x</button>
+    </div>
+  </div>
+
+  <!-- Events Quick Jump -->
+  <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+    <span style="color: var(--text-muted);">Sự kiện đặc biệt:</span>
+    <div class="events-bar">
+      <div class="event-tag" onclick="jumpToMinute(180)">🔴 03:00 - Kiểm Thử Sự Cố Lệnh AI (AI Fault Test)</div>
+      <div class="event-tag" onclick="jumpToMinute(480)">🟡 08:00 - Bắt Đầu Ca Sáng (Peak MES Production)</div>
+      <div class="event-tag" onclick="jumpToMinute(690)">🚨 11:30 - Nhiễu Mở Cửa / Xả Khí Tăng Vọt (Door Disturbance)</div>
+      <div class="event-tag" onclick="jumpToMinute(990)">⚡ 16:30 - Nhiễu Cảm Biến Áp Suất (Sensor EMI Noise)</div>
+      <div class="event-tag" onclick="jumpToMinute(1320)">🌙 22:00 - Ca Đêm Thấp Tải (Night Idle Shift)</div>
+    </div>
+  </div>
+
+  <!-- MES Production Schedule & Status Card -->
+  <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+    <div class="card-title" style="margin-bottom: 8px;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size: 16px;">🏭</span>
+        <span>Hệ Thống Quản Lý Điều Hành Sản Xuất MES (Manufacturing Execution System - Bay 1 Lithography)</span>
+      </span>
+      <span id="mesLotStatusBadge" class="badge" style="background:#0284c7; color:#fff; border:1px solid #38bdf8;">Đang tải lịch trình...</span>
+    </div>
+
+    <!-- MES Timeline Gantt Bar -->
+    <div style="position: relative; margin: 12px 0 8px 0;">
+      <div style="display: flex; height: 26px; border-radius: 6px; overflow: hidden; border: 1px solid #334155; font-size: 11px; font-weight: 600; text-align: center; line-height: 26px;">
+        <div style="flex: 6; background: #334155; color: #94a3b8;" title="00:00 - 06:00: Ca Đêm / Chờ">Ca Đêm (Standby)</div>
+        <div style="flex: 2; background: #d97706; color: #fff;" title="06:00 - 08:00: Giao ca & Gia nhiệt Track">Giao Ca</div>
+        <div style="flex: 4; background: #0284c7; color: #fff;" title="08:00 - 12:00: Ca Sáng - Lot A UV Litho">Ca Sáng: Lot A UV</div>
+        <div style="flex: 1; background: #ca8a04; color: #fff;" title="12:00 - 13:00: Nghỉ trưa bán tải">Nghỉ</div>
+        <div style="flex: 5; background: #7c3aed; color: #fff;" title="13:00 - 18:00: Ca Chiều - Lot B DUV Immersion">Ca Chiều: Lot B DUV</div>
+        <div style="flex: 4; background: #0891b2; color: #fff;" title="18:00 - 22:00: Ca Tối - Track Coater Run">Ca Tối: Track Run</div>
+        <div style="flex: 2; background: #334155; color: #94a3b8;" title="22:00 - 24:00: Ca Đêm - Chờ nạp phôi">Chờ Nạp Lot</div>
+      </div>
+      <!-- Time marker on Gantt -->
+      <div id="mesTimelineCursor" style="position: absolute; top: -3px; bottom: -3px; width: 3px; background: #ef4444; left: 0%; box-shadow: 0 0 8px #ef4444; transition: left 0.1s linear;"></div>
+    </div>
+
+    <!-- Real-time MES Parameters Row -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 10px;">
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #334155;">
+        <div style="font-size: 11px; color: var(--text-muted);">Giai Đoạn Lịch Trình MES</div>
+        <div id="mesStageText" style="font-size: 13px; font-weight: 700; color: #38bdf8; margin-top: 2px;">Ca Đêm: Chế Độ Chờ</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #334155;">
+        <div style="font-size: 11px; color: var(--text-muted);">Máy Quang Khắc Stepper (ASML)</div>
+        <div id="mesEquipState" style="font-size: 13px; font-weight: 700; color: #f59e0b; margin-top: 2px;">Chế Độ Chờ (Idle Standby)</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #334155;">
+        <div style="font-size: 11px; color: var(--text-muted);">Tải Nhiệt Thiết Bị (Q_MES)</div>
+        <div id="mesThermalLoad" style="font-size: 13px; font-weight: 700; color: #ea580c; margin-top: 2px;">25.0 kW</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #334155;">
+        <div style="font-size: 11px; color: var(--text-muted);">Nhân Sự Buồng Sạch & Phát Tán Bụi</div>
+        <div id="mesPersonnelState" style="font-size: 13px; font-weight: 700; color: #8b5cf6; margin-top: 2px;">1 kỹ sư (~120 hạt/phút)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Section: 2D Cleanroom Cross-Section & KPIs -->
+  <div class="main-grid">
+    <!-- Cleanroom 2D Cross Section Animation -->
+    <div class="card">
+      <div class="card-title">
+        <span>Mặt Cắt Phòng Sạch 3D/2D (Lưới 48 Quạt FFU + Cụm MAU + Dòng Khí Tuần Hoàn)</span>
+        <span id="airflowStatus" style="font-size: 12px; color: var(--accent);">Đang lưu thông bình thường</span>
+      </div>
+      <canvas id="cleanroomCanvas" width="700" height="350"></canvas>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+        <span>▲ Trần kỹ thuật (Ceiling Plenum): Cấp khí tươi từ MAU</span>
+        <span>▼ Sàn nâng đục lỗ (Perforated Raised Floor): Thu hồi gió</span>
+        <span>◄ ► Cột hồi gió hai bên tường</span>
+      </div>
+    </div>
+
+    <!-- Live Telemetry & Safety Gauges -->
+    <div class="card">
+      <div class="card-title">
+        <span>Thông Số Đo Trực Tiếp & Cảnh Báo An Toàn</span>
+        <span id="currentStatusTag" class="badge badge-baseline">Bình Thường</span>
+      </div>
+
+      <div class="kpi-grid">
+        <!-- Chênh Áp -->
+        <div class="kpi-box">
+          <div class="kpi-label">Chênh Áp Phòng (ΔP)</div>
+          <div id="valDp" class="kpi-value val-good">20.0 Pa</div>
+          <div class="kpi-sub">Ngưỡng ISO Min: <strong style="color:#ef4444;">≥ 15.0 Pa</strong></div>
+        </div>
+
+        <!-- Hạt Bụi -->
+        <div class="kpi-box">
+          <div class="kpi-label">Nồng Độ Bụi (0.5 µm)</div>
+          <div id="valParticles" class="kpi-value val-good">250 /m³</div>
+          <div class="kpi-sub">Giới hạn ISO Class 3: <strong style="color:#ef4444;">&lt; 1,000 /m³</strong></div>
+        </div>
+
+        <!-- Công Suất Quạt -->
+        <div class="kpi-box">
+          <div class="kpi-label">Công Suất Quạt Điện (kW)</div>
+          <div id="valPower" class="kpi-value">18.6 kW</div>
+          <div id="subPower" class="kpi-sub">MAU: 95% | 48 FFU: 100%</div>
+        </div>
+
+        <!-- Năng Lượng Tiêu Thụ -->
+        <div class="kpi-box">
+          <div class="kpi-label">Điện Tiêu Thụ Tích Lũy</div>
+          <div id="valEnergy" class="kpi-value" style="color: #38bdf8;">0.0 kWh</div>
+          <div id="subSavings" class="kpi-sub">Baseline tiêu chuẩn</div>
+        </div>
+      </div>
+
+      <!-- PLC Safety Gateway Status (Matching the user's diagram) -->
+      <div class="plc-box">
+        <div class="plc-header">
+          <span>Khối Kiểm Soát An Toàn PLC (PLC Safety Check)</span>
+          <span id="plcStatusBadge" class="plc-pill plc-safe">AN TOÀN (SAFE)</span>
+        </div>
+        <div id="plcReason" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+          Độ biến thiên tốc độ &lt; 4%/phút, cảm biến hợp lệ, áp suất ổn định.
+        </div>
+      </div>
+
+      <!-- Temperature & RH info -->
+      <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; background: #0f172a; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155;">
+        <span>Nhiệt độ: <strong id="valTemp" style="color:#fff;">22.0 °C</strong> (Mục tiêu 22.0°C)</span>
+        <span>Độ ẩm RH: <strong id="valRh" style="color:#fff;">42.5 %</strong> (Mục tiêu 40-45%)</span>
+        <span>Tải nhiệt MES: <strong id="valMesHeat" style="color:#f59e0b;">25 kW</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Charts: Telemetry over 24 Hours -->
+  <div class="charts-grid">
+    <div class="card">
+      <div class="card-title">1. Công Suất Quạt Điện (kW)</div>
+      <div class="chart-container">
+        <canvas id="chartPower" class="chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2. Chênh Áp Dương ΔP (Ngưỡng an toàn ≥ 15 Pa)</div>
+      <div class="chart-container">
+        <canvas id="chartDp" class="chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">3. Nồng Độ Hạt Bụi 0.5 µm (ISO Class 3)</div>
+      <div class="chart-container">
+        <canvas id="chartParticles" class="chart-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Solution Architecture Flow matching User's Proposed Schema -->
+  <div class="arch-flow-box">
+    <div class="card-title" style="margin-bottom: 4px;">
+      <span>Luồng Kiến Trúc Điều Khiển Đề Xuất (Closed-Loop AI with Safety Interlock)</span>
+      <span style="font-size: 12px; color: var(--accent);">Khớp 100% với sơ đồ đề xuất của bạn</span>
+    </div>
+    <div class="arch-steps">
+      <div class="arch-node active-node" id="node1">
+        <strong>1. MES & Cảm Biến</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Tải nhiệt MES, Lưu lượng xả, Hạt sinh ra, Áp suất, Bụi</span>
+      </div>
+      <div class="arch-arrow">➔</div>
+      <div class="arch-node" id="node2">
+        <strong>2. AI Prediction & Optimizer</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Mô hình dự báo phòng sạch, Tối ưu hóa phi tuyến SLSQP</span>
+      </div>
+      <div class="arch-arrow">➔</div>
+      <div class="arch-node" id="node3" style="border: 2px solid #eab308;">
+        <strong>3. PLC SAFETY CHECK</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Kiểm tra biên độ, Tốc độ dU/dt, Lỗi cảm biến</span>
+      </div>
+      <div class="arch-arrow">➔</div>
+      <div class="arch-node" id="node4">
+        <strong>4. Điều Khiển Quạt (MAU & FFU)</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Cấp tốc độ Safe hoặc kích hoạt Fail-Safe Fallback</span>
+      </div>
+      <div class="arch-arrow">➔</div>
+      <div class="arch-node" id="node5">
+        <strong>5. Phòng Sạch Bán Dẫn</strong><br>
+        <span style="color:var(--text-muted); font-size:11px;">Đảm bảo vô trùng ISO Class 3 &amp; Tiết kiệm ~37% điện</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- SIMULATION PHYSICS ENGINE (Exact match to cleanroom_model.py) ---
+    const N_STEPS = 1440;
+    let simMode = 'baseline'; // 'baseline', 'ai', 'split'
+    let currentStep = 0;
+    let isPlaying = false;
+    let speed = 60; // sim-minutes per real second
+    let animFrame = null;
+    let lastRealTime = performance.now();
+
+    // Physical Constants
+    const VOLUME = 2818.8; // m3
+    const N_FFU = 48;
+    const FFU_RATED_AIRFLOW = 1800.0 / 3600.0; // m3/s per unit
+    const FFU_RATED_POWER = 220.0; // W per unit
+    const HEPA_EFF = 0.99999;
+    const MAU_MAX_AIRFLOW = 10800.0 / 3600.0; // m3/s
+    const MAU_RATED_POWER = 15000.0; // W
+    const BASE_EXHAUST = 8500.0 / 3600.0; // m3/s
+    const C_THERMAL = 3394.0 * 1005.0;
+
+    // Precomputed Standard Scenario
+    const scenario = [];
+    for (let i = 0; i < N_STEPS; i++) {
+      const t = (i / N_STEPS) * 24.0;
+      let q_base = 25.0, p_gen = 120.0;
+      let exhaust_override = null;
+      let sensor_glitch = false;
+      let ai_fault = false;
+
+      if (t >= 0.0 && t < 6.0) {
+        q_base = 25.0 + 4.0 * Math.sin(t * Math.PI / 3.0);
+        p_gen = 120.0;
+      } else if (t >= 6.0 && t < 8.0) {
+        let r = (t - 6.0) / 2.0;
+        q_base = 25.0 + r * 65.0;
+        p_gen = 150.0 + r * 350.0;
+      } else if (t >= 8.0 && t < 12.0) {
+        q_base = 90.0 + 8.0 * Math.sin(t * 2.0);
+        p_gen = 480.0;
+      } else if (t >= 12.0 && t < 13.0) {
+        q_base = 60.0 + 5.0 * Math.sin(t);
+        p_gen = 280.0;
+      } else if (t >= 13.0 && t < 18.0) {
+        q_base = 88.0 + 7.0 * Math.cos(t * 1.5);
+        p_gen = 470.0;
+      } else if (t >= 18.0 && t < 22.0) {
+        q_base = 50.0 + 5.0 * Math.sin(t);
+        p_gen = 260.0;
+      } else {
+        q_base = 28.0;
+        p_gen = 130.0;
+      }
+
+      if (t >= 3.0 && t <= 3.25) ai_fault = true;
+      if (t >= 11.5 && t <= 11.75) {
+        exhaust_override = 10200.0 / 3600.0;
+        p_gen += 400.0;
+      }
+      if (t >= 16.5 && t <= 16.75) sensor_glitch = true;
+
+      scenario.push({
+        time_hr: t,
+        q_mes: Math.max(15.0, q_base),
+        particle_gen: Math.max(50.0, p_gen),
+        exhaust_override: exhaust_override,
+        sensor_glitch: sensor_glitch,
+        ai_fault: ai_fault
+      });
+    }
+
+    // Pre-calculate full traces for Baseline and AI Solution
+    function computeTraces(isAI) {
+      let temp = 22.0, rh = 42.5, dp = 20.0, particles = 250.0;
+      let cum_kwh = 0.0;
+      let prev_mau = 0.90, prev_ffu = 0.90;
+
+      const trace = {
+        dp: [], particles: [], power_kw: [], cum_kwh: [],
+        u_mau: [], u_ffu: [], temp: [], rh: [], plc_status: [], plc_reason: []
+      };
+
+      for (let i = 0; i < N_STEPS; i++) {
+        const sc = scenario[i];
+        let u_mau = 0.95, u_ffu = 1.00;
+        let plc_status = "NORMAL", plc_reason = "Chế độ truyền thống cố định 95%/100%";
+
+        if (isAI) {
+          // AI Optimizer Logic
+          let est_exh = sc.exhaust_override ? sc.exhaust_override : BASE_EXHAUST;
+          let req_net = Math.pow(Math.max(0, (18.0 - 5.0) / 85.0), 1.0 / 1.6);
+          let target_mau = Math.max(0.60, Math.min(1.0, (est_exh + req_net) / MAU_MAX_AIRFLOW));
+
+          let est_clean = (sc.particle_gen / 350.0) * VOLUME - est_exh;
+          let target_ffu = Math.max(0.45, Math.min(1.0, est_clean / (N_FFU * FFU_RATED_AIRFLOW)));
+
+          let cand_mau = target_mau;
+          let cand_ffu = target_ffu;
+
+          if (sc.ai_fault) {
+            cand_mau = 0.20; cand_ffu = 0.25; // Injected bad command
+          }
+
+          // PLC Safety Check
+          let safe = true;
+          let reason = "AI Setpoints Approved";
+
+          // Sensor validation
+          let sens_dp = sc.sensor_glitch ? -5.0 : dp;
+          if (sens_dp < 0 || sens_dp > 60.0) {
+            safe = false;
+            reason = "LỖI CẢM BIẾN ÁP SUẤT: Kích hoạt Fail-Safe";
+          }
+          if (cand_mau < 0.60 || cand_mau > 1.0 || cand_ffu < 0.45 || cand_ffu > 1.0) {
+            safe = false;
+            reason = "VI PHẠM BIÊN ĐỘ AN TOÀN: Lệnh bị PLC từ chối -> Chuyển Fail-Safe";
+          }
+
+          if (safe) {
+            let dm = Math.max(-0.04, Math.min(0.04, cand_mau - prev_mau));
+            let df = Math.max(-0.04, Math.min(0.04, cand_ffu - prev_ffu));
+            u_mau = prev_mau + dm;
+            u_ffu = prev_ffu + df;
+            plc_status = "SAFE";
+            plc_reason = reason;
+          } else {
+            u_mau = 0.95;
+            u_ffu = 0.95;
+            plc_status = "FAIL_SAFE";
+            plc_reason = reason;
+          }
+          prev_mau = u_mau;
+          prev_ffu = u_ffu;
+        }
+
+        // Physics Step
+        let p_mau = MAU_RATED_POWER * Math.pow(u_mau, 3);
+        let p_ffu = N_FFU * FFU_RATED_POWER * Math.pow(u_ffu, 3);
+        let p_tot = (p_mau + p_ffu) / 1000.0;
+        cum_kwh += p_tot * (1.0 / 60.0);
+
+        let v_mau = u_mau * MAU_MAX_AIRFLOW;
+        let v_ffu = u_ffu * (N_FFU * FFU_RATED_AIRFLOW);
+        let v_exh = sc.exhaust_override ? sc.exhaust_override : BASE_EXHAUST;
+
+        let v_net = v_mau - v_exh;
+        let dp_steady = (v_net <= 0) ? Math.max(0, 5 + v_net * 10) : 5.0 + 85.0 * Math.pow(v_net, 1.6);
+        dp += (60.0 / (20.0 + 60.0)) * (dp_steady - dp);
+
+        let leak = Math.max(0, 15.0 - dp) * 0.02;
+        let filt = (v_ffu * HEPA_EFF + v_exh) / VOLUME;
+        let d_c = (sc.particle_gen / VOLUME) + (leak * 500000.0 / VOLUME) - (filt * particles);
+        particles = Math.max(50.0, particles + d_c * 60.0);
+
+        // Temp
+        let q_fan = (p_mau + p_ffu) * 0.65 / 1000.0;
+        let q_tot = sc.q_mes + q_fan;
+        let max_cool = 30.0 + 130.0 * (0.35 * u_mau + 0.65 * u_ffu);
+        let cool_act = Math.min(max_cool, Math.max(0, q_tot + 25.0 * (temp - 22.0)));
+        temp += ((q_tot - cool_act) * 1000.0 / C_THERMAL) * 60.0;
+
+        trace.dp.push(dp);
+        trace.particles.push(particles);
+        trace.power_kw.push(p_tot);
+        trace.cum_kwh.push(cum_kwh);
+        trace.u_mau.push(u_mau);
+        trace.u_ffu.push(u_ffu);
+        trace.temp.push(temp);
+        trace.plc_status.push(plc_status);
+        trace.plc_reason.push(plc_reason);
+      }
+      return trace;
+    }
+
+    const baselineData = computeTraces(false);
+    const aiData = computeTraces(true);
+
+    // --- CANVAS VISUALIZATION (Fab Bay 1 Cross Section) ---
+    const canvas = document.getElementById('cleanroomCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Visual dust particles
+    const simDust = [];
+    for (let i = 0; i < 90; i++) {
+      simDust.push({
+        x: Math.random() * 500 + 100,
+        y: Math.random() * 180 + 90,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: Math.random() * 1.5 + 0.8,
+        size: Math.random() * 2.5 + 1.2
+      });
+    }
+
+    let fanAngle = 0;
+
+    function renderCleanroom(u_mau, u_ffu, particles_val, dp_val, status_str) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // 1. Background cleanroom wall
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, w, h);
+
+      // Return Air Ducts (Left & Right)
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(20, 60, 60, 240);
+      ctx.fillRect(w - 80, 60, 60, 240);
+      ctx.fillStyle = '#334155';
+      ctx.font = '10px monospace';
+      ctx.fillText('HỒI GIÓ', 32, 180);
+      ctx.fillText('HỒI GIÓ', w - 68, 180);
+
+      // 2. Ceiling Plenum (Top)
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(80, 20, w - 160, 50);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(80, 20, w - 160, 50);
+
+      // MAU Fresh Air Duct on top
+      ctx.fillStyle = '#0369a1';
+      ctx.fillRect(w/2 - 70, 0, 140, 25);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CỤM MAU (${(u_mau*100).toFixed(0)}%)`, w/2, 16);
+
+      // 3. FFU Ceiling Grid (48 Units)
+      const ffuY = 70;
+      const ffuH = 22;
+      const nUnits = 12;
+      const ffuW = (w - 180) / nUnits;
+
+      fanAngle += (u_ffu * 0.25);
+
+      for (let i = 0; i < nUnits; i++) {
+        let fx = 90 + i * ffuW;
+        // FFU housing
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(fx + 2, ffuY, ffuW - 4, ffuH);
+
+        // Filter media (yellow-tint HEPA)
+        ctx.fillStyle = '#ca8a04';
+        ctx.fillRect(fx + 4, ffuY + ffuH - 5, ffuW - 8, 4);
+
+        // Spinning fan blades indicator
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let cx = fx + ffuW / 2;
+        let cy = ffuY + 9;
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx - Math.cos(fanAngle) * 4, cy - Math.sin(fanAngle) * 4);
+        ctx.lineTo(cx + Math.cos(fanAngle) * 4, cy + Math.sin(fanAngle) * 4);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(`Lưới 48 Quạt Trần FFU (${(u_ffu*100).toFixed(0)}% Tốc Độ) + Màng Lọc ULPA 99.999%`, w/2, ffuY - 4);
+
+      // 4. Perforated Raised Floor (Bottom)
+      const floorY = 270;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(80, floorY, w - 160, 15);
+      // Grille perforations
+      ctx.fillStyle = '#0f172a';
+      for (let x = 95; x < w - 95; x += 12) {
+        ctx.fillRect(x, floorY + 4, 6, 7);
+      }
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('Sàn nâng đục lỗ (Perforated Floor Grating)', w/2, floorY + 28);
+
+      // 5. Lithography Equipment in the room
+      // Tool 1: ASML Twinscan Lithography Stepper
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(160, floorY - 90, 100, 90);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeRect(160, floorY - 90, 100, 90);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('Lithography', 210, floorY - 50);
+      ctx.font = '9px sans-serif';
+      ctx.fillText('ASML Stepper', 210, floorY - 35);
+
+      // Tool 2: TEL Clean Track Coater / Developer
+      ctx.fillStyle = '#0f766e';
+      ctx.fillRect(320, floorY - 80, 110, 80);
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.strokeRect(320, floorY - 80, 110, 80);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('Track Coater', 375, floorY - 45);
+      ctx.font = '9px sans-serif';
+      ctx.fillText('TEL Developer', 375, floorY - 30);
+
+      // Tool 3: Automated FOUP Station
+      ctx.fillStyle = '#374151';
+      ctx.fillRect(490, floorY - 60, 70, 60);
+      ctx.strokeStyle = '#9ca3af';
+      ctx.strokeRect(490, floorY - 60, 70, 60);
+      ctx.fillStyle = '#f3f4f6';
+      ctx.font = '9px sans-serif';
+      ctx.fillText('FOUP OHT', 525, floorY - 30);
+
+      // 6. Airflow Streamlines (Downflow Laminar Arrows)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.lineWidth = 1.5;
+      const speedOffset = (Date.now() / 25 * u_ffu) % 25;
+      for (let ax = 120; ax < w - 120; ax += 45) {
+        if ((ax > 150 && ax < 270) || (ax > 310 && ax < 440)) continue; // Avoid inside tools
+        for (let ay = ffuY + 30 + speedOffset; ay < floorY - 15; ay += 35) {
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax, ay + 12);
+          ctx.stroke();
+        }
+      }
+
+      // 7. Dust Particles Animation
+      const displayParticleDensity = Math.min(90, Math.floor(particles_val / 12));
+      for (let i = 0; i < displayParticleDensity; i++) {
+        let p = simDust[i];
+        p.y += p.vy * (u_ffu * 1.5);
+        p.x += p.vx;
+        if (p.y > floorY) {
+          p.y = ffuY + 25;
+          p.x = Math.random() * (w - 200) + 100;
+        }
+        if (p.x < 90 || p.x > w - 90) p.vx *= -1;
+
+        ctx.fillStyle = (particles_val > 900) ? 'rgba(239, 68, 68, 0.85)' : 'rgba(251, 191, 36, 0.7)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 8. Positive Pressure Visual Shield
+      if (dp_val < 15.0) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+        ctx.fillRect(80, ffuY + ffuH, w - 160, floorY - ffuY - ffuH);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('⚠️ CẢNH BÁO: CHÊNH ÁP DƯƠNG BỊ SỤT GIẢM (< 15 Pa)', w/2, 130);
+      }
+    }
+
+    // --- CHART PLOTTING (Pure HTML5 Canvas for Zero Dependencies) ---
+    function drawCurve(canvasId, dataList1, dataList2, limitVal, label1, label2, maxVal, unit) {
+      const c = document.getElementById(canvasId);
+      const cx = c.getContext('2d');
+      const w = c.clientWidth;
+      const h = c.clientHeight;
+      c.width = w;
+      c.height = h;
+
+      cx.clearRect(0, 0, w, h);
+      cx.fillStyle = '#0f172a';
+      cx.fillRect(0, 0, w, h);
+
+      // Grid lines
+      cx.strokeStyle = '#1e293b';
+      cx.lineWidth = 1;
+      for (let y = 0; y <= h; y += h / 4) {
+        cx.beginPath(); cx.moveTo(35, y); cx.lineTo(w - 10, y); cx.stroke();
+      }
+
+      // Limit line if present
+      if (limitVal !== null) {
+        let ly = h - (limitVal / maxVal) * (h - 25) - 15;
+        cx.strokeStyle = '#ef4444';
+        cx.setLineDash([4, 4]);
+        cx.beginPath(); cx.moveTo(35, ly); cx.lineTo(w - 10, ly); cx.stroke();
+        cx.setLineDash([]);
+        cx.fillStyle = '#ef4444';
+        cx.font = '9px sans-serif';
+        cx.fillText(`Ngưỡng (${limitVal})`, w - 75, ly - 3);
+      }
+
+      // Plot line 1 (Baseline)
+      function plotLine(data, color, isDashed) {
+        if (!data || data.length === 0) return;
+        cx.strokeStyle = color;
+        cx.lineWidth = 2;
+        if (isDashed) cx.setLineDash([3, 3]); else cx.setLineDash([]);
+        cx.beginPath();
+        for (let i = 0; i <= currentStep; i++) {
+          let x = 35 + (i / N_STEPS) * (w - 45);
+          let y = h - (data[i] / maxVal) * (h - 25) - 15;
+          if (i === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
+        }
+        cx.stroke();
+        cx.setLineDash([]);
+      }
+
+      if (simMode === 'baseline') {
+        plotLine(dataList1, '#ef4444', false);
+      } else if (simMode === 'ai') {
+        plotLine(dataList2, '#22c55e', false);
+      } else {
+        // Split view
+        plotLine(dataList1, '#ef4444', true);
+        plotLine(dataList2, '#22c55e', false);
+      }
+
+      // Current value marker
+      let curX = 35 + (currentStep / N_STEPS) * (w - 45);
+      cx.strokeStyle = '#38bdf8';
+      cx.beginPath(); cx.moveTo(curX, 0); cx.lineTo(curX, h); cx.stroke();
+    }
+
+    // --- UI UPDATERS ---
+    function updateUI() {
+      const activeData = (simMode === 'baseline') ? baselineData : aiData;
+      const step = currentStep;
+      const sc = scenario[step];
+
+      // Time clock
+      const tHr = sc.time_hr;
+      const hrs = Math.floor(tHr);
+      const mins = Math.floor((tHr - hrs) * 60);
+      document.getElementById('clockDisplay').innerText = 
+        `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+      document.getElementById('timeSlider').value = step;
+
+      // Telemetry values
+      const curDp = activeData.dp[step];
+      const curPart = activeData.particles[step];
+      const curPwr = activeData.power_kw[step];
+      const curKwh = activeData.cum_kwh[step];
+      const curMau = activeData.u_mau[step];
+      const curFfu = activeData.u_ffu[step];
+      const curTemp = activeData.temp[step];
+
+      document.getElementById('valDp').innerText = `${curDp.toFixed(1)} Pa`;
+      document.getElementById('valDp').className = `kpi-value ${curDp < 15.0 ? 'val-bad' : 'val-good'}`;
+
+      document.getElementById('valParticles').innerText = `${curPart.toFixed(0)} /m³`;
+      document.getElementById('valParticles').className = `kpi-value ${curPart > 1000.0 ? 'val-bad' : 'val-good'}`;
+
+      document.getElementById('valPower').innerText = `${curPwr.toFixed(1)} kW`;
+      document.getElementById('subPower').innerText = `MAU: ${(curMau*100).toFixed(0)}% | FFU: ${(curFfu*100).toFixed(0)}%`;
+
+      document.getElementById('valEnergy').innerText = `${curKwh.toFixed(1)} kWh`;
+
+      if (simMode === 'ai' || simMode === 'split') {
+        let baseKwh = baselineData.cum_kwh[step];
+        let diff = baseKwh - curKwh;
+        let pct = (baseKwh > 0) ? (diff / baseKwh) * 100 : 0;
+        document.getElementById('subSavings').innerHTML = 
+          `<span style="color:#22c55e;">Tiết kiệm: ${diff.toFixed(1)} kWh (-${pct.toFixed(1)}%)</span>`;
+      } else {
+        document.getElementById('subSavings').innerText = 'Chạy cố định (Tiêu hao cao)';
+      }
+
+      document.getElementById('valTemp').innerText = `${curTemp.toFixed(1)} °C`;
+      document.getElementById('valMesHeat').innerText = `${sc.q_mes.toFixed(0)} kW`;
+
+      // --- MES Schedule & Production State Update ---
+      const cursorPct = (step / (N_STEPS - 1)) * 100;
+      const cursorEl = document.getElementById('mesTimelineCursor');
+      if (cursorEl) cursorEl.style.left = `${cursorPct}%`;
+
+      let mesStage = "Ca Đêm: Chế Độ Chờ";
+      let mesBadge = "STANDBY";
+      let mesBadgeColor = "#64748b";
+      let mesEquip = "Chế Độ Chờ (Idle Standby)";
+      let mesPersonnel = "1 kỹ sư giám sát (~120 hạt/phút)";
+
+      if (hrs < 6.0) {
+        mesStage = "Ca Đêm: Chế Độ Chờ (Standby)";
+        mesBadge = "CA ĐÊM";
+        mesBadgeColor = "#64748b";
+        mesEquip = "Chế Độ Chờ (Idle Standby)";
+        mesPersonnel = "1 kỹ sư trực buồng (~120 hạt/phút)";
+      } else if (hrs < 8.0) {
+        mesStage = "Giao Ca: Gia Nhiệt Track & Chuẩn Bị Lot A";
+        mesBadge = "GIAO CA";
+        mesBadgeColor = "#d97706";
+        mesEquip = "Gia Nhiệt Bàn Phôi & Đèn DUV (Ramp 25->90 kW)";
+        mesPersonnel = "2-3 nhân viên chuẩn bị phôi (~280 hạt/phút)";
+      } else if (hrs < 12.0) {
+        if (hrs >= 11.5 && hrs <= 11.75) {
+          mesStage = "⚠️ SỰ CỐ: Cửa Buồng Mở Bảo Dưỡng Đột Xuất";
+          mesBadge = "SỰ CỐ CỬA MỞ";
+          mesBadgeColor = "#dc2626";
+          mesEquip = "Tạm dừng chiếu xạ / Xả khí tăng vọt";
+          mesPersonnel = "4 kỹ thuật viên vào phòng (~850 hạt/phút)";
+        } else {
+          mesStage = "Ca Sáng: Quang Khắc UV Lot A (Peak Exposure)";
+          mesBadge = "LOT A - QUANG KHẮC UV";
+          mesBadgeColor = "#0284c7";
+          mesEquip = "Chiếu Xạ Toàn Tải (Stepper 90 kW)";
+          mesPersonnel = "3 kỹ thuật viên vận hành (~480 hạt/phút)";
+        }
+      } else if (hrs < 13.0) {
+        mesStage = "Nghỉ Trưa: Bán Tải Stepper Standby";
+        mesBadge = "NGHỈ TRƯA";
+        mesBadgeColor = "#ca8a04";
+        mesEquip = "Bán Tải Đèn UV (60 kW)";
+        mesPersonnel = "1 kỹ sư trực ban (~280 hạt/phút)";
+      } else if (hrs < 18.0) {
+        if (hrs >= 16.5 && hrs <= 16.75) {
+          mesStage = "⚡ SỰ CỐ: Nhiễu Xung Điện Từ Cảm Biến EMI";
+          mesBadge = "NHIỄU CẢM BIẾN";
+          mesBadgeColor = "#ea580c";
+          mesEquip = "Chạy ngập DUV Lot B (88 kW)";
+          mesPersonnel = "3 nhân viên bảo trì kiểm tra (~470 hạt/phút)";
+        } else {
+          mesStage = "Ca Chiều: Quang Khắc Ngập DUV Lot B (Immersion)";
+          mesBadge = "LOT B - DUV IMMERSION";
+          mesBadgeColor = "#7c3aed";
+          mesEquip = "Chiếu Xạ DUV Ngập Nước (88 kW)";
+          mesPersonnel = "3 kỹ thuật viên vận hành (~470 hạt/phút)";
+        }
+      } else if (hrs < 22.0) {
+        mesStage = "Ca Tối: Tráng Keo Phủ Track Coater & Developer Phụ";
+        mesBadge = "CA TỐI - TRACK";
+        mesBadgeColor = "#0891b2";
+        mesEquip = "Track Coater & Nướng Phôi (50 kW)";
+        mesPersonnel = "2 kỹ sư vận hành (~260 hạt/phút)";
+      } else {
+        mesStage = "Ca Đêm: Hoàn Tất Mẻ / Chờ Nạp Lot Mới";
+        mesBadge = "KẾT THÚC MẺ";
+        mesBadgeColor = "#64748b";
+        mesEquip = "Chế Độ Chờ (28 kW)";
+        mesPersonnel = "1 kỹ sư giám sát (~130 hạt/phút)";
+      }
+
+      const mesBadgeEl = document.getElementById('mesLotStatusBadge');
+      if (mesBadgeEl) {
+        mesBadgeEl.innerText = mesBadge;
+        mesBadgeEl.style.background = mesBadgeColor;
+        mesBadgeEl.style.borderColor = mesBadgeColor;
+      }
+      const mesStageEl = document.getElementById('mesStageText');
+      if (mesStageEl) mesStageEl.innerText = mesStage;
+      const mesEquipEl = document.getElementById('mesEquipState');
+      if (mesEquipEl) mesEquipEl.innerText = mesEquip;
+      const mesThermalEl = document.getElementById('mesThermalLoad');
+      if (mesThermalEl) mesThermalEl.innerText = `${sc.q_mes.toFixed(1)} kW`;
+      const mesPersonnelEl = document.getElementById('mesPersonnelState');
+      if (mesPersonnelEl) mesPersonnelEl.innerText = mesPersonnel;
+
+      // Status Badge
+      let statusStr = "Bình Thường";
+      let statusColor = "badge-baseline";
+      if (sc.exhaust_override) {
+        statusStr = "MỞ CỬA / NHIỄU XẢ KHÍ (+400 bụi)";
+        statusColor = "badge-baseline";
+      } else if (sc.sensor_glitch) {
+        statusStr = "NHIỄU CẢM BIẾN ÁP SUẤT";
+      } else if (sc.ai_fault) {
+        statusStr = "KIỂM THỬ SỰ CỐ AI";
+      } else if (hrs >= 8 && hrs <= 18) {
+        statusStr = "CA NGÀY (Sản Xuất Cao)";
+      } else {
+        statusStr = "CA ĐÊM (Thấp Tải)";
+      }
+      document.getElementById('currentStatusTag').innerText = statusStr;
+
+      // PLC Safety Gatekeeper
+      if (simMode === 'ai' || simMode === 'split') {
+        const plcStat = aiData.plc_status[step];
+        const plcReason = aiData.plc_reason[step];
+        const badge = document.getElementById('plcStatusBadge');
+        if (plcStat === 'FAIL_SAFE') {
+          badge.className = 'plc-pill plc-failsafe';
+          badge.innerText = 'KÍCH HOẠT FAIL-SAFE';
+        } else {
+          badge.className = 'plc-pill plc-safe';
+          badge.innerText = 'AN TOÀN (SAFE)';
+        }
+        document.getElementById('plcReason').innerText = plcReason;
+      } else {
+        document.getElementById('plcStatusBadge').className = 'plc-pill plc-safe';
+        document.getElementById('plcStatusBadge').innerText = 'BASELINE CỐ ĐỊNH';
+        document.getElementById('plcReason').innerText = 'Không sử dụng thuật toán AI, chạy 100% quạt liên tục.';
+      }
+
+      // Render 2D Canvas
+      renderCleanroom(curMau, curFfu, curPart, curDp, statusStr);
+
+      // Render Charts
+      drawCurve('chartPower', baselineData.power_kw, aiData.power_kw, null, 'Baseline', 'AI', 25.0, 'kW');
+      drawCurve('chartDp', baselineData.dp, aiData.dp, 15.0, 'Baseline', 'AI', 35.0, 'Pa');
+      drawCurve('chartParticles', baselineData.particles, aiData.particles, 1000.0, 'Baseline', 'AI', 1200.0, '/m³');
+    }
+
+    // --- ANIMATION LOOP ---
+    function tick(now) {
+      if (isPlaying) {
+        const deltaSec = (now - lastRealTime) / 1000.0;
+        const stepsToAdvance = deltaSec * speed;
+        if (stepsToAdvance >= 1) {
+          currentStep = Math.min(N_STEPS - 1, currentStep + Math.floor(stepsToAdvance));
+          lastRealTime = now;
+          if (currentStep >= N_STEPS - 1) {
+            isPlaying = false;
+            document.getElementById('playText').innerText = "Xem Lại";
+          }
+          updateUI();
+        }
+      } else {
+        lastRealTime = now;
+      }
+      animFrame = requestAnimationFrame(tick);
+    }
+
+    // --- CONTROLS ---
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      if (isPlaying && currentStep >= N_STEPS - 1) currentStep = 0;
+      document.getElementById('playText').innerText = isPlaying ? "Tạm Dừng" : "Tiếp Tục";
+      document.getElementById('playIcon').innerText = isPlaying ? "⏸" : "▶";
+    }
+
+    function resetSim() {
+      isPlaying = false;
+      currentStep = 0;
+      document.getElementById('playText').innerText = "Chạy Mô Phỏng";
+      document.getElementById('playIcon').innerText = "▶";
+      updateUI();
+    }
+
+    function setMode(m) {
+      simMode = m;
+      document.getElementById('btnModeBase').className = (m === 'baseline') ? 'btn-active' : '';
+      document.getElementById('btnModeAI').className = (m === 'ai') ? 'btn-active' : '';
+      document.getElementById('btnModeSplit').className = (m === 'split') ? 'btn-active' : '';
+
+      const b = document.getElementById('modeBadge');
+      if (m === 'baseline') {
+        b.className = 'badge badge-baseline';
+        b.innerText = 'Chế độ: 01_Baseline (95% / 100%)';
+      } else if (m === 'ai') {
+        b.className = 'badge badge-ai';
+        b.innerText = 'Chế độ: 02_AI + PLC Đề Xuất (Tối Ưu & An Toàn)';
+      } else {
+        b.className = 'badge badge-split';
+        b.innerText = 'Chế độ: So Sánh Song Song (Baseline vs AI)';
+      }
+      updateUI();
+    }
+
+    function setSpeed(s) {
+      speed = s;
+      document.querySelectorAll('.btn-speed').forEach(btn => btn.classList.remove('btn-active'));
+      event.target.classList.add('btn-active');
+    }
+
+    function onSeek(val) {
+      currentStep = parseInt(val);
+      updateUI();
+    }
+
+    function jumpToMinute(m) {
+      currentStep = Math.min(N_STEPS - 1, m);
+      updateUI();
+    }
+
+    // Start
+    updateUI();
+    animFrame = requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

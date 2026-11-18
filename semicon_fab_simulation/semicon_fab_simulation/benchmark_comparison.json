@@ -1,0 +1,23 @@
+{
+  "baseline": {
+    "model_name": "Baseline Traditional Operation",
+    "total_energy_kwh": 562.0950000000067,
+    "avg_power_kw": 23.420625000000005,
+    "max_power_kw": 23.420625,
+    "min_dp_pa": 5.1214442473041055,
+    "max_particles": 3715.5427234010226,
+    "violations_count": 17
+  },
+  "ai_solution": {
+    "model_name": "AI Energy Optimizer with PLC Safety Check",
+    "total_energy_kwh": 276.7512126638711,
+    "avg_power_kw": 11.531300527661312,
+    "max_power_kw": 21.914505,
+    "min_dp_pa": 2.83327542750917,
+    "max_particles": 8946.458592594514,
+    "failsafe_trigger_minutes": 32,
+    "violations_count": 24
+  },
+  "savings_kwh": 285.3437873361356,
+  "savings_pct": 50.764334736322546
+}
